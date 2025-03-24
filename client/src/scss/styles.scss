@@ -1,0 +1,199 @@
+// Override Bootstrap's Sass default variables
+//
+// Nearly all variables in Bootstrap are written with the `!default` flag.
+// This allows you to override the default values of those variables before
+// you import Bootstrap's source Sass files.
+//
+// Overriding the default variable values is the best way to customize your
+// CSS without writing _new_ styles. For example, you can either change
+// `$body-color` or write more CSS that override's Bootstrap's CSS like so:
+// `body { color: red; }`.
+
+//
+// Bring in Bootstrap
+//
+
+// Option 1
+//
+// Import all of Bootstrap's CSS
+
+// @import "bootstrap/scss/bootstrap";
+
+// Option 2
+//
+// Place variable overrides first, then import just the styles you need. Note that some stylesheets are required no matter what.
+
+// Toggle global options
+$enable-gradients: true;
+$enable-shadows: true;
+
+$offcanvas-box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+
+// Include functions first
+@import 'bootstrap/scss/functions';
+
+// Customize some defaults
+$body-color: #333;
+$body-bg: #fff;
+$border-radius: 0.4rem;
+$success: #7952b3;
+
+// Required
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/variables-dark';
+@import 'bootstrap/scss/maps';
+@import 'bootstrap/scss/mixins';
+@import 'bootstrap/scss/utilities';
+@import 'bootstrap/scss/root';
+@import 'bootstrap/scss/reboot';
+
+@import 'bootstrap/scss/type';
+// @import "bootstrap/scss/images";
+@import 'bootstrap/scss/containers';
+@import 'bootstrap/scss/grid';
+@import 'bootstrap/scss/tables';
+@import 'bootstrap/scss/forms';
+@import 'bootstrap/scss/buttons';
+@import 'bootstrap/scss/transitions';
+@import 'bootstrap/scss/dropdown';
+@import 'bootstrap/scss/button-group';
+// @import "bootstrap/scss/nav";
+// @import "bootstrap/scss/navbar"; // Requires nav
+@import 'bootstrap/scss/card';
+// @import "bootstrap/scss/breadcrumb";
+@import 'bootstrap/scss/accordion';
+// @import "bootstrap/scss/pagination";
+// @import "bootstrap/scss/badge";
+@import 'bootstrap/scss/alert';
+// @import "bootstrap/scss/progress";
+@import 'bootstrap/scss/list-group';
+@import 'bootstrap/scss/close';
+// @import "bootstrap/scss/toasts";
+@import 'bootstrap/scss/modal'; // Requires transitions
+// @import "bootstrap/scss/tooltip";
+@import 'bootstrap/scss/popover';
+// @import "bootstrap/scss/carousel";
+// @import "bootstrap/scss/spinners";
+@import 'bootstrap/scss/offcanvas'; // Requires transitions
+// @import "bootstrap/scss/placeholders";
+
+// Helpers
+// @import "bootstrap/scss/helpers";
+
+// Utilities
+@import 'bootstrap/scss/utilities/api';
+
+//
+// Custom styles
+//
+
+// @import "icon-list";
+
+body {
+	padding: 1.5rem;
+	background-color: #666;
+	padding-bottom: 80vh;
+}
+
+.initial-hero {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+
+	// center
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100vh;
+
+	.initial-hero-content {
+		text-align: center;
+		color: #fff;
+	}
+	a {
+		color: #bbf;
+		text-decoration: underline;
+	}
+}
+
+// .graphic-tester {}
+.graphic-canvas {
+	position: relative;
+	overflow: hidden;
+
+	margin: 1em;
+
+	border: 1px solid #000;
+
+	$bg-color-color0: #bbb;
+	$bg-color-bg: #fff;
+
+	// Checkered background:
+	background-color: $bg-color-bg;
+	background-image: linear-gradient(45deg, $bg-color-color0 25%, transparent 25%),
+		linear-gradient(-45deg, $bg-color-color0 25%, transparent 25%),
+		linear-gradient(45deg, transparent 75%, $bg-color-color0 75%),
+		linear-gradient(-45deg, transparent 75%, $bg-color-color0 75%);
+	background-size: 20px 20px;
+	background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+.auto-reload-bar {
+	width: 100%;
+	position: relative;
+	// height: 2em;
+	.auto-reload-bar_bar {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		background-color: rgba(0, 0, 0, 0.1);
+		z-index: 1;
+	}
+	.auto-reload-bar_message {
+		// position: absolute;
+		// top: 0;
+		// left: 0.5em;
+
+		height: 1.5em;
+
+		z-index: 3;
+		color: #000;
+		text-shadow: 0 0 5px #fff;
+	}
+	.auto-reload-bar_actions {
+		display: block;
+		position: relative;
+		padding: 0 5px;
+		height: 2em;
+	}
+	.auto-reload-bar_action {
+		z-index: 5;
+		box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+
+		border-radius: 5px;
+		border: 1px solid #090;
+		border-left: 3px solid #090;
+
+		background-color: rgba(0, 255, 0, 0.8);
+		padding-left: 0.25em;
+	}
+	.auto-reload-bar_action-timed {
+		position: absolute;
+		top: 0;
+		// left is set by JS
+	}
+	.auto-reload-bar_action-untimed {
+		display: inline-block;
+	}
+}
+.graphics-actions {
+	display: flex;
+	// justify-content: space-between;
+	align-items: flex-start;
+	margin: 1em 0;
+	.graphics-action {
+		margin: 0.5em;
+	}
+}
