@@ -10,7 +10,7 @@ for (const arg of args) {
     devMode = true;
   }
 }
-const PORT = (process.env.PORT = process.env.PORT || 3100);
+const PORT = process.env.PORT || 3100;
 
 const app = startServer(PORT, devMode);
 
