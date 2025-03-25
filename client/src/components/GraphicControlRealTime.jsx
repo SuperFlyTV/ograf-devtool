@@ -6,7 +6,7 @@ import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
 
-export function GraphicControlRealTime({ rendererRef, setInvokeActionsSchedule, manifest, schedule }) {
+export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manifest, schedule }) {
 	const settingsContext = React.useContext(SettingsContext)
 	const settings = settingsContext.settings
 	const onChange = settingsContext.onChange
@@ -84,7 +84,7 @@ export function GraphicControlRealTime({ rendererRef, setInvokeActionsSchedule, 
 									<GraphicsActions
 										rendererRef={rendererRef}
 										schedule={schedule}
-										setInvokeActionsSchedule={setInvokeActionsSchedule}
+										setActionsSchedule={setActionsSchedule}
 										manifest={manifest}
 									/>
 								</div>
@@ -98,20 +98,19 @@ export function GraphicControlRealTime({ rendererRef, setInvokeActionsSchedule, 
 		</div>
 	)
 }
-function GraphicsActions({ manifest, rendererRef, schedule, setInvokeActionsSchedule }) {
+function GraphicsActions({ manifest, rendererRef, schedule, setActionsSchedule }) {
 	return (
 		<>
 			<div className="graphics-actions">
-				{Object.entries(manifest.customActions || {}).map(([actionId, action]) => {
+				{Object.values(manifest.customActions || {}).map((action) => {
 					return (
 						<GraphicAction
-							key={actionId}
+							key={action.id}
 							rendererRef={rendererRef}
-							actionId={actionId}
 							action={action}
 							onAction={(actionId, data, e) => {
 								// Invoke action:
-								rendererRef.current.invokeGraphicAction(actionId, data).catch(issueTracker.add)
+								rendererRef.current.customAction(actionId, data).catch(issueTracker.add)
 								if (e.shiftKey) {
 									// Add action to schedule, to run at next auto-reload:
 
@@ -122,7 +121,7 @@ function GraphicsActions({ manifest, rendererRef, schedule, setInvokeActionsSche
 											payload: JSON.parse(JSON.stringify(data)),
 										},
 									})
-									setInvokeActionsSchedule(schedule)
+									setActionsSchedule(schedule)
 								}
 							}}
 						/>

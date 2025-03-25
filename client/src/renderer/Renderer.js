@@ -66,7 +66,7 @@ export class Renderer {
 	}
 
 	/** Non-realtime graphics only. Set a schedule of action invokes. */
-	async setInvokeActionsSchedule(schedule) {
-		return this.layer.setInvokeActionsSchedule(schedule)
+	async setActionsSchedule(schedule) {
+		return this.layer.setActionsSchedule(schedule)
 	}
 }

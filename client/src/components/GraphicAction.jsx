@@ -3,7 +3,7 @@ import { Button } from 'react-bootstrap'
 import { GDDGUI } from '../lib/GDD/gdd-gui.jsx'
 import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
 
-export function GraphicAction({ actionId, action, onAction }) {
+export function GraphicAction({ action, onAction }) {
 	const initialData = action.schema ? getDefaultDataFromSchema(action.schema) : {}
 	const schema = action.schema
 
@@ -16,16 +16,16 @@ export function GraphicAction({ actionId, action, onAction }) {
 	return (
 		<div className="graphics-action card">
 			<div className="card-header">
-				<h5>{action.label ?? actionId}</h5>
+				<h5>{action.name ?? action.id}</h5>
 			</div>
 			<div className="card-body">
 				<div>{schema && <GDDGUI schema={schema} data={data} setData={onDataSave} />}</div>
 				<Button
 					onClick={(e) => {
-						onAction(actionId, data, e)
+						onAction(action.id, data, e)
 					}}
 				>
-					{action.label}
+					{action.name}
 				</Button>
 			</div>
 		</div>

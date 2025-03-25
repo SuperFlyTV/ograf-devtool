@@ -9,6 +9,22 @@ export async function setupSchemaValidator() {
 	const v = await _setupSchemaValidator({
 		fetch: async (url) => {
 			console.log('fetching', url)
+
+			const rewriteUrls = []
+			if (location.hostname.includes('localhost')) {
+				rewriteUrls.push({
+					from: 'https://ograf.ebu.io/',
+					to: 'http://localhost:3100/ograf/',
+				})
+				// rewriteUrls.push({
+				// 	from: 'https://ebu.github.io/ograf',
+				// 	to: 'http://localhost:3100/ograf/',
+				// })
+			}
+			for (const rewrite of rewriteUrls) {
+				url = url.replace(rewrite.from, rewrite.to)
+			}
+
 			const response = await fetch(`${url}?a=${Date.now()}`, {
 				cache: 'no-store',
 			})
@@ -53,7 +69,7 @@ async function _setupSchemaValidator(
 
 	const cache = options.getCache ? await options.getCache() : {}
 
-	const baseURL = 'https://ebu.github.io/ograf/v1-draft-0/specification/json-schemas/graphics/schema.json'
+	const baseURL = `https://ograf.ebu.io/v1-draft-0/specification/json-schemas/graphics/schema.json`
 
 	const v = new Validator()
 	async function addRef(ref) {
@@ -134,14 +150,23 @@ export function validateGraphicManifest(graphicManifest) {
 
 	// Find helpful issues that is not covered by the JSON schema
 
-	// As of
 	if (graphicManifest.rendering !== undefined)
 		errors.push(
-			`The manifest has a "rendering" property. The properties in this has been moved to the top level of the manifest.`
+			`The manifest has a "rendering" property. The properties in this has been moved to the top level of the manifest (as of 2025-03-10).`
 		)
 
 	if (graphicManifest.actions !== undefined)
-		errors.push(`The manifest has an "actions" property. This has been renamed to "customActions".`)
+		errors.push(`The manifest has an "actions" property. This has been renamed to "customActions" (as of 2025-03-10).`)
+
+	if (graphicManifest.customActions) {
+		const uniqueIds = new Set()
+		for (const customAction of graphicManifest.customActions) {
+			if (uniqueIds.has(customAction.id)) {
+				errors.push(`The customAction ids must be unique! ""${customAction.id}" is used more than once.`)
+			}
+			uniqueIds.add(customAction.id)
+		}
+	}
 
 	return errors
 }

@@ -22,16 +22,29 @@ export class ResourceProvider {
 		// Load the Graphic module:
 		const module = await import(/* @vite-ignore */ modulePath)
 
-		// console.log('module', module)
+		if (!module.default) {
+			console.log('module', module)
 
-		if (!module.Graphic) {
-			throw new Error('Module expected to expose a class named "Graphic" (found none)')
+			const exportKeys = Object.keys(module)
+
+			if (exportKeys.length) {
+				throw new Error(
+					`The Graphic is expected to export a class as a default export. ${
+						exportKeys.length === 1
+							? `Instead there is a export called "${exportKeys[0]}". Change this to be "export default ${exportKeys[0]}".`
+							: `Instead there are named exports: ${exportKeys.join(', ')}.`
+					}`
+				)
+			} else {
+				throw new Error('Module expected to export a class as a default export (no exports found)')
+			}
 		}
-		if (typeof module.Graphic !== 'function') {
-			throw new Error('Module expected to expose a class named "Graphic" (Graphic is not a function)')
+		if (typeof module.default !== 'function') {
+			console.log('module', module)
+			throw new Error('The Graphic is expected to default export a class')
 		}
 
-		return module.Graphic
+		return module.default
 	}
 }
 let staticComponentId = 0

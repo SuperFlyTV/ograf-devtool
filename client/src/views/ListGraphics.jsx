@@ -40,8 +40,8 @@ export function ListGraphics({ graphics, onSelect, onRefresh }) {
 										</td>
 										<td>
 											<ul>
-												{graphic.manifest?.rendering?.supportsRealTime ? <li>🏃 Realtime rendering</li> : null}
-												{graphic.manifest?.rendering?.supportsNonRealTime ? <li>🧍 Non-Realtime rendering</li> : null}
+												{graphic.manifest?.supportsRealTime ? <li>🏃 Realtime rendering</li> : null}
+												{graphic.manifest?.supportsNonRealTime ? <li>🧍 Non-Realtime rendering</li> : null}
 											</ul>
 										</td>
 										<td>

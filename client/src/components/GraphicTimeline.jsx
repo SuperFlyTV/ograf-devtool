@@ -76,24 +76,30 @@ export function GraphicTimeline({ rendererRef, playTimeRef, realtime, schedule, 
 			></div>
 			<div className="auto-reload-bar_message">{message ? `Status: ${message}` : ''}</div>
 			{schedule.length ? (
-				<div className="auto-reload-bar_actions">
+				<div
+					className="auto-reload-bar_actions"
+					style={{
+						height: `${schedule.length * 30}px`,
+					}}
+				>
 					{schedule.map((action, index) =>
 						(settings.realtime && settings.autoReloadEnable) || !settings.realtime ? (
 							<div
 								key={index}
 								className="auto-reload-bar_action auto-reload-bar_action-timed"
 								style={{
+									top: `${index * 30}px`,
 									left: `${(action.timestamp / duration) * 100}%`,
 								}}
 							>
-								{`${action.invokeAction.method}: ${JSON.stringify(action.invokeAction.payload)}`}
+								{`${action.action.type}: ${JSON.stringify(action.action.params)}`}
 								<Button variant="outline-secondary" size="sm" onClick={() => onRemoveScheduledAction(index)}>
 									🗑️
 								</Button>
 							</div>
 						) : (
 							<div key={index} className="auto-reload-bar_action auto-reload-bar_action-untimed">
-								{`${action.invokeAction.method}: ${JSON.stringify(action.invokeAction.payload)}`}
+								{`${action.action.type}: ${JSON.stringify(action.action.params)}`}
 								<Button variant="outline-secondary" size="sm" onClick={() => onRemoveScheduledAction(index)}>
 									🗑️
 								</Button>

@@ -121,9 +121,7 @@ export function GraphicTester({ graphic, onExit }) {
 						setTimeout(() => {
 							// if (!triggerReloadGraphicRef.current.activeAutoReload) return
 
-							rendererRef.current
-								.invokeGraphicAction(action.invokeAction.method, action.invokeAction.payload)
-								.catch(issueTracker.add)
+							rendererRef.current.invokeGraphicAction(action.action.type, action.action.params).catch(issueTracker.add)
 						}, delay)
 					}
 					if (triggerReloadGraphicRef.current.activeAutoReload) {
@@ -136,7 +134,7 @@ export function GraphicTester({ graphic, onExit }) {
 					}
 				} else {
 					// non-realtime
-					await rendererRef.current.setInvokeActionsSchedule(scheduleRef.current).catch(issueTracker.add)
+					await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.add)
 					rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.add)
 				}
 			})
@@ -168,10 +166,13 @@ export function GraphicTester({ graphic, onExit }) {
 		rendererRef.current.gotoTime(time).catch(issueTracker.add)
 		playTimeRef.current = time
 	}, [])
+	const sentSetPlayTime = React.useCallback(async () => {
+		await rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.add)
+	}, [])
 
 	const scheduleRef = React.useRef([])
 	const [schedule, setSchedule] = React.useState([])
-	const setInvokeActionsSchedule = React.useCallback(
+	const setActionsSchedule = React.useCallback(
 		(schedule) => {
 			scheduleRef.current = JSON.parse(JSON.stringify(schedule))
 			setSchedule(scheduleRef.current)
@@ -180,11 +181,18 @@ export function GraphicTester({ graphic, onExit }) {
 					triggerReloadGraphic()
 				}
 			} else {
-				rendererRef.current.setInvokeActionsSchedule(scheduleRef.current).catch(issueTracker.add)
+				rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.add)
 			}
 		},
 		[settings]
 	)
+	const sendSetActionsSchedule = React.useCallback(async () => {
+		if (settings.realtime) {
+			// nothing?
+		} else {
+			await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.add)
+		}
+	}, [settings])
 
 	// Load the graphic manifest:
 	React.useEffect(() => {
@@ -212,21 +220,23 @@ export function GraphicTester({ graphic, onExit }) {
 										<GraphicControlRealTime
 											rendererRef={rendererRef}
 											schedule={schedule}
-											setInvokeActionsSchedule={setInvokeActionsSchedule}
+											setActionsSchedule={setActionsSchedule}
 											manifest={graphicManifest}
 										/>
 									) : (
 										<GraphicControlNonRealTime
 											rendererRef={rendererRef}
 											schedule={schedule}
-											setInvokeActionsSchedule={setInvokeActionsSchedule}
+											setActionsSchedule={setActionsSchedule}
+											sendSetActionsSchedule={sendSetActionsSchedule}
+											sentSetPlayTime={sentSetPlayTime}
 											manifest={graphicManifest}
 											setPlayTime={setPlayTime}
 										/>
 									)}
 									<div>
 										{schedule.length ? (
-											<Button onClick={() => setInvokeActionsSchedule([])}>Reset saved actions</Button>
+											<Button onClick={() => setActionsSchedule([])}>Reset saved actions</Button>
 										) : null}
 									</div>
 								</div>
@@ -252,7 +262,7 @@ export function GraphicTester({ graphic, onExit }) {
 								playTimeRef={playTimeRef}
 								onRemoveScheduledAction={(index) => {
 									schedule.splice(index, 1)
-									setInvokeActionsSchedule([...schedule])
+									setActionsSchedule([...schedule])
 								}}
 							/>
 						</div>

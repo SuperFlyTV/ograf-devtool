@@ -1,13 +1,29 @@
 import * as React from 'react'
-import { Button, Accordion, Form } from 'react-bootstrap'
+import { Button, Accordion, Form, ButtonGroup } from 'react-bootstrap'
 import { issueTracker } from '../renderer/IssueTracker.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
+import { GDDGUI } from '../lib/GDD/gdd-gui.jsx'
+import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
 
-export function GraphicControlNonRealTime({ rendererRef, manifest, setPlayTime, schedule, setActionsSchedule }) {
+export function GraphicControlNonRealTime({
+	rendererRef,
+	manifest,
+	setPlayTime,
+	schedule,
+	setActionsSchedule,
+	sendSetActionsSchedule,
+	sentSetPlayTime,
+}) {
 	const settingsContext = React.useContext(SettingsContext)
 	const settings = JSON.parse(JSON.stringify(settingsContext.settings))
 	const onChange = settingsContext.onChange
+
+	const initialData = manifest.schema ? getDefaultDataFromSchema(manifest.schema) : {}
+	const [data, setData] = React.useState(initialData)
+	const onDataSave = (d) => {
+		setData(JSON.parse(JSON.stringify(d)))
+	}
 
 	const supportsNonRealTime = manifest.supportsNonRealTime
 
@@ -32,12 +48,18 @@ export function GraphicControlNonRealTime({ rendererRef, manifest, setPlayTime, 
 		[settings]
 	)
 	const addToSchedule = React.useCallback(
-		(timestamp, invokeAction) => {
+		(timestamp, type, params) => {
+			console.log('addToSchedule', timestamp, type, params)
 			const newSchedule = [
 				...schedule,
 				{
 					timestamp,
-					invokeAction: JSON.parse(JSON.stringify(invokeAction)),
+					action: JSON.parse(
+						JSON.stringify({
+							type,
+							params,
+						})
+					),
 				},
 			]
 			setActionsSchedule(newSchedule)
@@ -66,7 +88,13 @@ export function GraphicControlNonRealTime({ rendererRef, manifest, setPlayTime, 
 									<Button
 										onClick={() => {
 											issueTracker.clear()
-											rendererRef.current.loadGraphic(settings).catch(issueTracker.add)
+											rendererRef.current
+												.loadGraphic(settings)
+												.then(async () => {
+													await sendSetActionsSchedule()
+													sentSetPlayTime()
+												})
+												.catch(issueTracker.add)
 										}}
 									>
 										Load Graphic
@@ -80,11 +108,44 @@ export function GraphicControlNonRealTime({ rendererRef, manifest, setPlayTime, 
 									</Button>
 								</div>
 								<div>
+									<div>{manifest.schema && <GDDGUI schema={manifest.schema} data={data} setData={onDataSave} />}</div>
+								</div>
+								<div>
+									<ButtonGroup>
+										<Button
+											onClick={() => {
+												addToSchedule(playTimeLocal, 'updateAction', {
+													data,
+												})
+											}}
+										>
+											Update
+										</Button>
+										<Button
+											onClick={() => {
+												addToSchedule(playTimeLocal, 'playAction', {})
+											}}
+										>
+											Play
+										</Button>
+										<Button
+											onClick={() => {
+												addToSchedule(playTimeLocal, 'stopAction', {})
+											}}
+										>
+											Stop
+										</Button>
+									</ButtonGroup>
+								</div>
+								<div>
 									<GraphicsActions
 										rendererRef={rendererRef}
 										manifest={manifest}
-										onAction={(method, payload) => {
-											addToSchedule(playTimeLocal, { method, payload })
+										onAction={(actionId, payload, _event) => {
+											addToSchedule(playTimeLocal, 'customAction', {
+												id: actionId,
+												payload: payload,
+											})
 										}}
 									/>
 								</div>
@@ -125,16 +186,8 @@ function GraphicsActions({ manifest, rendererRef, onAction }) {
 	return (
 		<>
 			<div className="graphics-actions">
-				{Object.entries(manifest.customActions || {}).map(([actionId, action]) => {
-					return (
-						<GraphicAction
-							key={actionId}
-							rendererRef={rendererRef}
-							actionId={actionId}
-							action={action}
-							onAction={onAction}
-						/>
-					)
+				{Object.values(manifest.customActions || {}).map((action) => {
+					return <GraphicAction key={action.id} rendererRef={rendererRef} action={action} onAction={onAction} />
 				})}
 			</div>
 			<div>
