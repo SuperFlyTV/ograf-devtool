@@ -10,6 +10,6 @@
     "build": "cd client && npm run build && cd ..",
     "vercel:install": "rm client/package-lock.json && npm run install",
     "vercel:build": "npm run build",
-    "start": "cd server && npm run start"
+    "start": "node server/src/index.js"
   }
 }
