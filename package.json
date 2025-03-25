@@ -6,10 +6,16 @@
   "author": "Johan Nyman <johan@superfly.tv>",
   "license": "MIT",
   "scripts": {
-    "install": "cd client && npm install && cd ../server && npm install && cd ..",
+    "install": "cd client && npm install",
     "build": "cd client && npm run build && cd ..",
     "vercel:install": "rm client/package-lock.json && npm run install",
     "vercel:build": "npm run build",
-    "start": "node server/src/index.js"
+    "start": "node api/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
   }
 }

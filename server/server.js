@@ -7,9 +7,11 @@ function startServer(port, devMode) {
   const app = express();
   const cache = new Cache();
 
+  if (devMode) console.log("Running in dev mode");
+
   // Proxy requests to the Ograf API:
-  app.get("/ograf/*", (req, res) => {
-    const url = req.url.replace(/^\/ograf\//, "https://ograf.ebu.io/");
+  app.get(["ograf", "/ograf/*"], (req, res) => {
+    const url = req.url.replace(/^\/ograf/, "https://ograf.ebu.io");
 
     const sendResponse = (v) => {
       // set status
@@ -56,7 +58,7 @@ function startServer(port, devMode) {
 
   if (!devMode) {
     // Serve static files from the client/dist folder:
-    const staticPath = path.resolve("../client/dist");
+    const staticPath = path.resolve("./client/dist");
     console.log(`Serving static files from ${staticPath}`);
     app.use("/", express.static(staticPath));
   } else {
@@ -83,6 +85,8 @@ function startServer(port, devMode) {
 
   app.listen(port);
   console.log(`Server started on port ${port}`);
+
+  return app;
 }
 
 module.exports = { startServer };

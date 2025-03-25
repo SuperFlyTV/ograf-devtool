@@ -1,6 +1,6 @@
-const { startServer } = require("./server");
+const { startServer } = require("../server/server.js");
 
-console.log("Starting server...");
+// console.log("Starting server...");
 
 const args = process.argv.slice(2);
 
@@ -12,4 +12,6 @@ for (const arg of args) {
 }
 const PORT = (process.env.PORT = process.env.PORT || 3100);
 
-startServer(PORT, devMode);
+const app = startServer(PORT, devMode);
+
+module.exports = app;
