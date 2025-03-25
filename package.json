@@ -1,7 +1,7 @@
 {
   "name": "ograf-devtool",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server/src/index.js",
   "repository": "git@github.com:SuperFlyTV/ograf-devtool.git",
   "author": "Johan Nyman <johan@superfly.tv>",
   "license": "MIT",
@@ -10,6 +10,6 @@
     "build": "cd client && npm run build && cd ..",
     "vercel:install": "rm client/package-lock.json && npm run install",
     "vercel:build": "npm run build",
-    "vercel:start": "cd server && npm run start"
+    "start": "cd server && npm run start"
   }
 }

@@ -1,5 +1,7 @@
 const { startServer } = require("./server");
 
+console.log("Starting server...");
+
 const args = process.argv.slice(2);
 
 let devMode = false;
