@@ -117,7 +117,7 @@ function GraphicsActions({ manifest, rendererRef, schedule, setActionsSchedule }
 									schedule.push({
 										timestamp: Date.now() - rendererRef.current.loadGraphicEndTime,
 										invokeAction: {
-											method: actionId,
+											id: actionId,
 											payload: JSON.parse(JSON.stringify(data)),
 										},
 									})

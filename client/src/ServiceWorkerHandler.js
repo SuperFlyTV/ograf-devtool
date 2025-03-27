@@ -55,6 +55,7 @@ class ServiceWorkerHandler {
 		}
 	}
 	async init(fileHandler) {
+		console.log('Initializing Service Worker...')
 		let registeredNewServiceWorker = false
 		if (!this.pServiceWorker) {
 			// debounce:
@@ -72,6 +73,7 @@ class ServiceWorkerHandler {
 
 				registeredNewServiceWorker = true
 				return new Promise((resolve, reject) => {
+					console.log('Registering Service Worker...')
 					register(FILE_NAME, {
 						registrationOptions: { scope: './' },
 						ready(registration) {
@@ -102,6 +104,7 @@ class ServiceWorkerHandler {
 		}
 
 		const serviceWorker = await this.pServiceWorker
+		console.log('Service Worker registered')
 
 		console.log('serviceWorker', serviceWorker)
 
@@ -121,6 +124,8 @@ class ServiceWorkerHandler {
 				)
 			}, 1000)
 		})
+
+		console.log('Service Worker version: ' + swVersion)
 
 		if (swVersion !== SW_VERSION) {
 			// Try to reload the serviceWorker

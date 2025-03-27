@@ -1,4 +1,4 @@
-const SW_VERSION = '2025-03-25T16:41:06.206Z' // Updated at build time
+const SW_VERSION = '2025-03-27T11:31:53.803Z' // Updated at build time
 
 let requestId = 0
 const requestMap = new Map()
@@ -99,6 +99,8 @@ self.addEventListener('fetch', function (event) {
 		event.respondWith(
 			fetch(newUrl, {
 				cache: 'no-store',
+				method: event.request.method,
+				headers: event.request.headers,
 			})
 			// intercept requests by handling event.request here
 		)

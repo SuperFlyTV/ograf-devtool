@@ -78,11 +78,11 @@ export class LayerHandler {
 		return this._handleError('stopAction', () => this.currentGraphic.element.stopAction(params))
 	}
 
-	async customAction(actionId, params) {
+	async customAction(actionId, payload) {
 		return this._handleError('customAction', () =>
 			this.currentGraphic.element.customAction({
-				method: actionId,
-				params: params,
+				id: actionId,
+				payload: payload,
 			})
 		)
 	}
