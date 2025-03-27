@@ -1,0 +1,6 @@
+
+
+TODO:
+
+* Add a warning (not an error) if resources are loaded from outside the graphics directory.
+* Add helpful warnings for missing gotoTime, setActionSchedule: (if non real time, just add empty functions.)

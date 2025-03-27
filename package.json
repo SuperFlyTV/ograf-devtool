@@ -10,7 +10,8 @@
     "build": "cd client && npm run build && cd ..",
     "vercel:install": "rm client/package-lock.json && npm run install",
     "vercel:build": "npm run build",
-    "start": "node api/index.js"
+    "start": "node api/index.js",
+    "publish": "npm i && npm run build && vercel"
   },
   "dependencies": {
     "express": "^4.21.2"

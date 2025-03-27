@@ -287,14 +287,16 @@ export function GraphicTester({ graphic, onExit }) {
 								</div>
 							) : null}
 						</div>
-						<div
-							ref={canvasRef}
-							className="graphic-canvas"
-							style={{
-								width: settings.width,
-								height: settings.height,
-							}}
-						></div>
+						<div className="reset-styles">
+							<div
+								ref={canvasRef}
+								className="graphic-canvas"
+								style={{
+									width: settings.width,
+									height: settings.height,
+								}}
+							></div>
+						</div>
 					</div>
 				</div>
 			</div>

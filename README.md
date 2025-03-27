@@ -26,6 +26,6 @@ npm i -g vercel
 # Run local server in vercel dev mode
 vercel dev
 
-# Upload to vercel
-vercel
+# Publish to vercel
+npm run publish
 ```
