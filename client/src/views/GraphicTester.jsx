@@ -51,7 +51,6 @@ export function GraphicTester({ graphic, onExit }) {
 	}, [])
 
 	React.useLayoutEffect(() => {
-		updateScale()
 		if (!rendererRef.current) {
 			if (canvasRef.current) {
 				rendererRef.current = new Renderer(canvasRef.current)
@@ -59,6 +58,18 @@ export function GraphicTester({ graphic, onExit }) {
 			}
 		}
 	}, [])
+
+	React.useLayoutEffect(() => {
+		updateScale()
+
+		// Add a delayed updateScale call to ensure proper dimensions
+		const timeoutId = setTimeout(() => {
+			updateScale()
+		}, 100)
+
+		// Clean up timeout if component unmounts
+		return () => clearTimeout(timeoutId)
+	}, [updateScale])
 
 	React.useLayoutEffect(() => {
 		updateScale()
