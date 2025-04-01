@@ -57,5 +57,12 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      - name: Notify Web Server (to pull latest image)
-        run: 'curl -H "Authorization: Bearer ${{secrets.WATCHTOWER_HTTP_API_SECRET}}" http://ograf-devtool.superfly.tv:8088/v1/update'
+      - name: Update deployment (pull latest image)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            docker compose up -d
