@@ -17,7 +17,7 @@ on:
 
 jobs:
   push_to_registries:
-    name: Push Docker image to multiple registries
+    name: Push Docker image to Github Package Registry
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -56,3 +56,6 @@ jobs:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+      - name: Notify Web Server (to pull latest image)
+        run: 'curl -H "Authorization: Bearer ${{secrets.WATCHTOWER_HTTP_API_SECRET}}" http://ograf-devtool.superfly.tv:8088/v1/update'
