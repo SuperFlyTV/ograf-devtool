@@ -11,6 +11,7 @@ The tool is running at [https://ograf-devtool.vercel.app](https://ograf-devtool.
 ```bash
 
 npm i
+npm run install-client
 
 npm run build
 

@@ -15,12 +15,8 @@ COPY ./client/assets ./client/assets
 COPY ./client/package.json ./client/package.json
 COPY ./client/vite.config.js ./client/vite.config.js
 
-# Fix a bug related to https://github.com/npm/cli/issues/4828 :
-# RUN rm /opt/client/package-lock.json
-
-# RUN npm i @rollup/rollup-linux-x64-musl
 RUN npm i
-RUN npm run install
+RUN npm run install-client
 RUN npm run build
 
 # ----------------------------------------------------------------------------------------
@@ -28,7 +24,6 @@ RUN npm run build
 FROM node:22-alpine
 
 
-# COPY --from=builder /opt/package.json /opt/package.json
 COPY --from=builder /opt/node_modules /opt/node_modules
 COPY --from=builder /opt/server /opt/server
 
