@@ -1,6 +1,6 @@
-const { startServer } = require("../server/server.js");
+const { startServer } = require("./server.js");
 
-// console.log("Starting server...");
+console.log("Starting server...");
 
 const args = process.argv.slice(2);
 

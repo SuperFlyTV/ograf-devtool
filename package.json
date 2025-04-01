@@ -6,7 +6,7 @@
   "author": "Johan Nyman <johan@superfly.tv>",
   "license": "MIT",
   "scripts": {
-    "install": "cd client && npm install",
+    "install-client": "cd client && npm install",
     "build": "cd client && npm run build && cd ..",
     "vercel:install": "rm client/package-lock.json && npm run install",
     "vercel:build": "npm run build",
