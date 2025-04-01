@@ -16,3 +16,4 @@ for (const file of files) {
 
 	await fs.promises.writeFile(file, newContent)
 }
+console.log(`Updated SW_VERSION to ${version}`)
