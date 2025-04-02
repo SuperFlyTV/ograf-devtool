@@ -84,7 +84,11 @@ function startServer(port, devMode) {
   }
 
   app.listen(port);
-  console.log(`Server started on port ${port}`);
+  if (devMode) {
+    console.log(`Server available at http://localhost:${port}`);
+  } else {
+    console.log(`Server started on port ${port}`);
+  }
 
   return app;
 }

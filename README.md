@@ -4,7 +4,7 @@
 
 This is a tool to help with developing <b>[OGraf](https://ograf.ebu.io/) Graphics</b>.
 
-The tool is running at [https://ograf-devtool.vercel.app](https://ograf-devtool.vercel.app)
+The tool is running at [https://ograf-devtool.superfly.tv/](https://ograf-devtool.superfly.tv/)
 
 ## For Developers
 
@@ -13,20 +13,12 @@ The tool is running at [https://ograf-devtool.vercel.app](https://ograf-devtool.
 npm i
 npm run install-client
 
-npm run build
 
+# Build client and serve it locally
+npm run build:client
 npm run start
-```
 
-### Testing for vercel
-
-```bash
-# This can only be run by maintainers (that have access to the vercel project)
-npm i -g vercel
-
-# Run local server in vercel dev mode
-vercel dev
-
-# Publish to vercel
-npm run publish
+# OR:
+# Start the client in dev-mode and serve it locally:
+npm run dev
 ```
