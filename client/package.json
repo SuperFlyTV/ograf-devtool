@@ -13,7 +13,8 @@
     "@types/wicg-file-system-access": "^2023.10.5",
     "@vitejs/plugin-react": "^4.3.4",
     "sass": "1.77.6",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "vite-plugin-node-polyfills": "^0.23.0"
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",

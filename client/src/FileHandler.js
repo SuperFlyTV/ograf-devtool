@@ -1,7 +1,9 @@
+import { EventEmitter } from 'events'
 import { sleep } from './lib/lib.js'
 
-class FileHandler {
+class FileHandler extends EventEmitter {
 	constructor() {
+		super()
 		this.monitoredHandles = {}
 		this.fileChangeListeners = []
 		this.files = {}
@@ -71,33 +73,40 @@ class FileHandler {
 	}
 
 	async readFile(path) {
-		// remove any query parameters:
-		path = path.replace(/\?.*/, '')
+		try {
+			// remove any query parameters:
+			path = path.replace(/\?.*/, '')
 
-		let f = this.files[path]
-		if (!f) {
-			const dirPath = path.replace(/\/[^/]+$/, '')
-			const dir = this.dirs[dirPath]
-			if (dir) {
-				// reload files in parent directory:
-				await this.discoverFilesInDirectory(dirPath, dir.dirHandle)
+			let f = this.files[path]
+			if (!f) {
+				const dirPath = path.replace(/\/[^/]+$/, '')
+				const dir = this.dirs[dirPath]
+				if (dir) {
+					// reload files in parent directory:
+					await this.discoverFilesInDirectory(dirPath, dir.dirHandle)
+				}
+				// Try again:
+				f = this.files[path]
 			}
-			// Try again:
-			f = this.files[path]
-		}
-		if (!f) {
-			throw new Error(`File not found: "${path}"`)
-		}
+			if (!f) {
+				throw new Error(`File not found: "${path}"`)
+			}
 
-		this.monitorFile(path, f.handle)
+			this.monitorFile(path, f.handle)
 
-		const file = await f.handle.getFile()
+			const file = await f.handle.getFile()
 
-		return {
-			size: file.size,
-			name: file.name,
-			type: file.type,
-			arrayBuffer: await file.arrayBuffer(),
+			return {
+				size: file.size,
+				name: file.name,
+				type: file.type,
+				arrayBuffer: await file.arrayBuffer(),
+			}
+		} catch (e) {
+			if (`${error}`.includes('NotAllowedError')) {
+				this.emit('lostAccess')
+			}
+			throw e
 		}
 	}
 

@@ -16,7 +16,7 @@ COPY ./client/package.json ./client/package.json
 COPY ./client/vite.config.js ./client/vite.config.js
 
 RUN npm i
-RUN npm run install-client
+RUN npm run install:client
 RUN npm run build:client
 
 # ----------------------------------------------------------------------------------------

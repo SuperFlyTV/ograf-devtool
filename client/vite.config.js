@@ -1,5 +1,6 @@
 import path from 'path'
 import react from '@vitejs/plugin-react'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { defineConfig } from 'vite'
 import { buildSync } from 'esbuild'
 
@@ -31,6 +32,7 @@ export default defineConfig({
 	plugins: [
 		// ...
 		react(),
+		nodePolyfills(),
 		{
 			apply: 'build',
 			enforce: 'post',

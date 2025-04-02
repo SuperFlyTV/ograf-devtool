@@ -37,6 +37,17 @@ export function App() {
 		fileHandler.listGraphics().then(setGraphics).catch(console.error)
 	}, [])
 
+	React.useEffect(() => {
+		const onLostAccessEvent = () => {
+			// This is called if the fileHandler has lost access to the directory.
+			setGraphics(false)
+		}
+		fileHandler.on('lostAccess', onLostAccessEvent)
+		return () => {
+			fileHandler.off('lostAccess', onLostAccessEvent)
+		}
+	}, [])
+
 	if (!serviceWorker) {
 		return (
 			<div className="container">

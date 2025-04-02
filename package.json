@@ -6,7 +6,7 @@
   "author": "Johan Nyman <johan@superfly.tv>",
   "license": "MIT",
   "scripts": {
-    "install-client": "cd client && npm install",
+    "install:client": "cd client && npm install",
     "build:client": "cd client && npm run build && cd ..",
     "start": "node server/index.js",
     "dev:client": "cd client && npm run dev",

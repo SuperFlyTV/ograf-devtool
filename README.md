@@ -11,7 +11,7 @@ The tool is running at [https://ograf-devtool.superfly.tv/](https://ograf-devtoo
 ```bash
 
 npm i
-npm run install-client
+npm run install:client
 
 
 # Build client and serve it locally
