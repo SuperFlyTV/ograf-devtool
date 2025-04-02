@@ -26,8 +26,24 @@ export function GraphicTester({ graphic, onExit }) {
 
 	const [errorMessage, setErrorMessage] = React.useState('')
 
+	const previewContainerRef = React.useRef(null)
+	const [scale, setScale] = React.useState(1)
+
 	const canvasRef = React.useRef(null)
 	const rendererRef = React.useRef(null)
+
+	const updateScale = React.useCallback(() => {
+		if (previewContainerRef.current) {
+			console.log('settings.width', settings.width)
+			const containerWidth = previewContainerRef.current.clientWidth
+			const widthScale = containerWidth / settings.width
+
+			const containerHeight = previewContainerRef.current.clientHeight
+			const heightScale = containerHeight / settings.height
+
+			setScale(heightScale < widthScale ? heightScale : widthScale)
+		}
+	}, [settings])
 
 	const onError = React.useCallback((e) => {
 		setErrorMessage(`${e.message || e}`)
@@ -42,6 +58,26 @@ export function GraphicTester({ graphic, onExit }) {
 			}
 		}
 	}, [])
+
+	React.useLayoutEffect(() => {
+		updateScale()
+
+		// Add a delayed updateScale call to ensure proper dimensions
+		const timeoutId = setTimeout(() => {
+			updateScale()
+		}, 100)
+
+		// Clean up timeout if component unmounts
+		return () => clearTimeout(timeoutId)
+	}, [updateScale])
+
+	React.useLayoutEffect(() => {
+		updateScale()
+		window.addEventListener('resize', updateScale)
+		return () => {
+			window.removeEventListener('resize', updateScale)
+		}
+	}, [updateScale])
 
 	React.useEffect(() => {
 		rendererRef.current.setGraphic(graphic)
@@ -202,100 +238,126 @@ export function GraphicTester({ graphic, onExit }) {
 
 	return (
 		<SettingsContext.Provider value={{ settings, onChange: onSettingsChange }}>
-			<div className="container-md">
-				<div className="graphic-tester card">
-					<div className="card-body">
-						<div>
-							<Button onClick={onExit}>👈Go back</Button>
-						</div>
+			<div className="full-wrap">
+				<div className="container-md sidebar">
+					<div className="graphic-tester card">
+						<div className="card-body">
+							<div>
+								<Button onClick={onExit}>👈Go back</Button>
+							</div>
 
-						<div className="settings">
-							<GraphicSettings />
-						</div>
-						{graphicManifest ? (
-							<>
-								<div className="capabilities">{<GraphicCapabilities manifest={graphicManifest} />}</div>
-								<div className="control">
-									{settings.realtime ? (
-										<GraphicControlRealTime
-											rendererRef={rendererRef}
-											schedule={schedule}
-											setActionsSchedule={setActionsSchedule}
-											manifest={graphicManifest}
-										/>
-									) : (
-										<GraphicControlNonRealTime
-											rendererRef={rendererRef}
-											schedule={schedule}
-											setActionsSchedule={setActionsSchedule}
-											sendSetActionsSchedule={sendSetActionsSchedule}
-											sentSetPlayTime={sentSetPlayTime}
-											manifest={graphicManifest}
-											setPlayTime={setPlayTime}
-										/>
-									)}
-									<div>
-										{schedule.length ? (
-											<Button onClick={() => setActionsSchedule([])}>Reset saved actions</Button>
-										) : null}
+							<div className="settings">
+								<GraphicSettings />
+							</div>
+							{graphicManifest ? (
+								<>
+									<div className="capabilities">{<GraphicCapabilities manifest={graphicManifest} />}</div>
+									<div className="control">
+										{settings.realtime ? (
+											<GraphicControlRealTime
+												rendererRef={rendererRef}
+												schedule={schedule}
+												setActionsSchedule={setActionsSchedule}
+												manifest={graphicManifest}
+											/>
+										) : (
+											<GraphicControlNonRealTime
+												rendererRef={rendererRef}
+												schedule={schedule}
+												setActionsSchedule={setActionsSchedule}
+												sendSetActionsSchedule={sendSetActionsSchedule}
+												sentSetPlayTime={sentSetPlayTime}
+												manifest={graphicManifest}
+												setPlayTime={setPlayTime}
+											/>
+										)}
+										<div>
+											{schedule.length ? (
+												<Button onClick={() => setActionsSchedule([])}>Reset saved actions</Button>
+											) : null}
+										</div>
 									</div>
-								</div>
-								<div className="issues">
-									<div className="card">
-										{!isReloading ? <GraphicIssues manifest={graphicManifest} graphic={graphic} /> : null}
+									<div className="issues">
+										<div className="card">
+											{!isReloading ? <GraphicIssues manifest={graphicManifest} graphic={graphic} /> : null}
+										</div>
 									</div>
-								</div>
-							</>
-						) : (
-							<div>Loading manifest...</div>
-						)}
-					</div>
-				</div>
-			</div>
-			<div className="container-fluid">
-				<div className="graphic-tester-render card">
-					<div className="card-body">
-						<div>
-							<GraphicTimeline
-								rendererRef={rendererRef}
-								schedule={schedule}
-								playTimeRef={playTimeRef}
-								onRemoveScheduledAction={(index) => {
-									schedule.splice(index, 1)
-									setActionsSchedule([...schedule])
-								}}
-							/>
-						</div>
-						<div>
-							{errorMessage && (
-								<div className="alert alert-danger" role="alert">
-									Error: {errorMessage}
-								</div>
+								</>
+							) : (
+								<div>Loading manifest...</div>
 							)}
 						</div>
-						<div>
-							{issues.length ? (
-								<div className="alert alert-danger" role="alert">
-									Graphic Errors:
-									<ul>
-										{issues.map((issue, index) => (
-											<li key={index}>
-												<pre>{issue}</pre>
-											</li>
-										))}
-									</ul>
+					</div>
+				</div>
+				<div className="container-fluid">
+					<div className="graphic-tester-render card">
+						<div className="card-body">
+							<div>
+								<GraphicTimeline
+									rendererRef={rendererRef}
+									schedule={schedule}
+									playTimeRef={playTimeRef}
+									onRemoveScheduledAction={(index) => {
+										schedule.splice(index, 1)
+										setActionsSchedule([...schedule])
+									}}
+								/>
+							</div>
+							<div>
+								{errorMessage && (
+									<div className="alert alert-danger" role="alert">
+										Error: {errorMessage}
+									</div>
+								)}
+							</div>
+							<div>
+								{issues.length ? (
+									<div className="alert alert-danger" role="alert">
+										Graphic Errors:
+										<ul>
+											{issues.map((issue, index) => (
+												<li key={index}>
+													<pre>{issue}</pre>
+												</li>
+											))}
+										</ul>
+									</div>
+								) : null}
+							</div>
+							<div className="reset-styles">
+								<div className="graphic-canvas-wrapper">
+									<div
+										ref={previewContainerRef}
+										style={{
+											width: '100%',
+											position: 'absolute',
+											aspectRatio: `${settings.width}/${settings.height}`,
+											overflow: 'hidden',
+											transition: '0.2s all ease-out',
+											height: '100%',
+										}}
+									>
+										<div
+											style={{
+												transform: `scale(${scale})`,
+												transformOrigin: 'top left',
+												width: settings.width,
+												height: settings.height,
+											}}
+										>
+											<div
+												ref={canvasRef}
+												className="graphic-canvas"
+												style={{
+													position: 'relative',
+													display: 'block',
+													border: 'none',
+												}}
+											></div>
+										</div>
+									</div>
 								</div>
-							) : null}
-						</div>
-						<div className="reset-styles">
-							<div
-								ref={canvasRef}
-								className="graphic-canvas"
-								style={{
-									width: settings.width,
-									height: settings.height,
-								}}
-							></div>
+							</div>
 						</div>
 					</div>
 				</div>
