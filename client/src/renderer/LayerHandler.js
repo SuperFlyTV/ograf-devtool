@@ -15,6 +15,9 @@ export class LayerHandler {
 
 		this.element.style.zIndex = zIndex
 
+		// Create shadow DOM root (used to isolate styles):
+		this.shadowRoot = this.element.attachShadow({ mode: 'closed' })
+
 		containerElement.appendChild(this.element)
 	}
 	getStatus() {
@@ -35,7 +38,7 @@ export class LayerHandler {
 
 		// Add element to DOM:
 		const element = document.createElement(elementName)
-		this.element.appendChild(element)
+		this.shadowRoot.appendChild(element)
 
 		this.currentGraphic = {
 			element,
@@ -60,7 +63,7 @@ export class LayerHandler {
 		} catch (err) {
 			console.error('Error disposing GraphicInstance:', err)
 		} finally {
-			this.element.innerHTML = ''
+			this.shadowRoot.innerHTML = ''
 			this.currentGraphic = null
 		}
 	}

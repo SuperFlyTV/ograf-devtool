@@ -360,7 +360,7 @@ function GraphicTesterInner({ graphic }) {
 									</div>
 								) : null}
 							</div>
-							<div className="reset-styles">
+							<div className="">
 								<div className="graphic-canvas-wrapper">
 									<div
 										ref={previewContainerRef}
