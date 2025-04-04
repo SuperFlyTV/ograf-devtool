@@ -18,22 +18,24 @@ import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext
 export function GraphicTester({ graphicsList }) {
 	const params = useParams()
 	console.log('graphicsList', graphicsList)
+	let graphicId = params['*']
+	if (graphicId) graphicId = `/${graphicId}`
 
 	const graphic = React.useMemo(
 		() => {
-			if (!params.localGraphicPath) return null
+			if (!graphicId) return null
 
-			return graphicsList.find((g) => g.path === `/${params.localGraphicPath}/`)
+			return graphicsList.find((g) => g.path === graphicId)
 		},
 		graphicsList,
-		params.localGraphicPath
+		graphicId
 	)
 
 	if (!graphic) {
 		return (
 			<>
 				<div>
-					<p>No Graphic found for path: {params.localGraphicPath}</p>
+					<p>No Graphic found for path: {graphicId}</p>
 					<p>
 						<Link to="/">
 							<Button>👈Go back</Button>

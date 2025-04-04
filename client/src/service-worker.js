@@ -1,4 +1,4 @@
-const SW_VERSION = '2025-04-04T09:18:43.953Z' // Updated at build time
+const SW_VERSION = '2025-04-04T18:37:44.507Z' // Updated at build time
 
 let requestId = 0
 const requestMap = new Map()
@@ -24,6 +24,21 @@ broadcastFromParent.onmessage = (event) => {
 			reply: msg.id,
 			result: SW_VERSION,
 		})
+	} else if (msg && msg.type === 'unregister') {
+		// This is based on https://github.com/NekR/self-destroying-sw
+		// To completely unregister a service worker, we need to unregister it and then
+		// reload all clients that might be using it.
+
+		console.log('Unregistering service worker...')
+		self.registration
+			.unregister()
+			.then(() => {
+				return self.clients.matchAll()
+			})
+			.then((clients) => {
+				console.log(`Reloading ${clients.length} clients...`)
+				clients.forEach((client) => client.navigate(client.url))
+			})
 	}
 }
 self.addEventListener('install', (_event) => {
@@ -105,7 +120,6 @@ self.addEventListener('fetch', function (event) {
 				method: event.request.method,
 				headers: event.request.headers,
 			})
-			// intercept requests by handling event.request here
 		)
 	}
 })

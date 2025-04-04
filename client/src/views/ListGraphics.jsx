@@ -3,18 +3,25 @@ import { Table, Button } from 'react-bootstrap'
 import { Link } from 'react-router'
 import { GraphicIssues } from '../components/GraphicIssues'
 
-export function ListGraphics({ graphicsList, onRefresh }) {
+export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName }) {
 	return (
 		<div className="container-md">
 			<div className="list-graphics card">
 				<div>
-					<h2>Select Graphic</h2>
+					<h2>Local folder "{graphicsFolderName}"</h2>
 					<Button
 						onClick={() => {
 							onRefresh()
 						}}
 					>
 						Refresh list
+					</Button>
+					<Button
+						onClick={() => {
+							onCloseFolder()
+						}}
+					>
+						Pick another folder
 					</Button>
 				</div>
 

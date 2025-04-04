@@ -3,8 +3,9 @@ import { Button } from 'react-bootstrap'
 import { fileHandler } from '../FileHandler'
 import superFlyLogoUrl from '../assets/SuperFly.tv_Logo_2020_v02.png'
 import ografLogoUrl from '../assets/ograf_logo_colour_draft.svg'
+import { serviceWorkerHandler } from '../ServiceWorkerHandler'
 
-export function InitialView({ setGraphicsList }) {
+export function InitialView({ onGraphicsFolder }) {
 	return (
 		<div className="initial-hero">
 			<div className="initial-hero-content">
@@ -43,9 +44,11 @@ export function InitialView({ setGraphicsList }) {
 							onClick={() => {
 								fileHandler
 									.init()
-									.then((graphics) => {
-										console.log('graphics', graphics)
-										setGraphicsList(graphics)
+									.then(async () => {
+										onGraphicsFolder({
+											graphicsList: await fileHandler.listGraphics(),
+											graphicsFolderName: fileHandler.dirHandle.name,
+										})
 									})
 									.catch(console.error)
 							}}
@@ -87,6 +90,10 @@ export function TroubleShoot() {
 						size="sm"
 						variant="secondary"
 						onClick={() => {
+							serviceWorkerHandler.broadcastToSW.postMessage({
+								type: 'unregister',
+							})
+
 							navigator.serviceWorker.getRegistrations().then(async (registrations) => {
 								for (const sw of registrations) {
 									await sw.unregister()

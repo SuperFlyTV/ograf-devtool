@@ -29,6 +29,7 @@ export function App() {
 	}, [serviceWorker])
 
 	const [graphicsList, setGraphicsList] = React.useState(null)
+	const [graphicsFolderName, setGraphicsFolderName] = React.useState(null)
 	const onRefreshGraphics = React.useCallback(() => {
 		setGraphicsList(false)
 		fileHandler.listGraphics().then(setGraphicsList).catch(console.error)
@@ -38,6 +39,16 @@ export function App() {
 
 	// Initializing Service Worker:
 	if (!serviceWorker) {
+		if (!navigator.serviceWorker) {
+			return (
+				<div className="container">
+					<div className="alert alert-danger">
+						<p>Sorry, this tool uses Service Workers to function, which are not supported in your browser.</p>
+						<p>Please use a browser that supports Service Workers.</p>
+					</div>
+				</div>
+			)
+		}
 		return (
 			<div className="container">
 				{serviceWorkerError ? (
@@ -49,6 +60,9 @@ export function App() {
 				) : (
 					<div className="alert alert-info">
 						<span>Initializing Service Worker, please wait..</span>
+						<p>
+							<i>If this message doesn't disappear, please reload the page.</i>
+						</p>
 					</div>
 				)}
 
@@ -62,7 +76,12 @@ export function App() {
 	if (!graphicsList) {
 		return (
 			<>
-				<InitialView setGraphicsList={setGraphicsList} />
+				<InitialView
+					onGraphicsFolder={({ graphicsList, graphicsFolderName }) => {
+						setGraphicsList(graphicsList)
+						setGraphicsFolderName(graphicsFolderName)
+					}}
+				/>
 			</>
 		)
 	}
@@ -71,8 +90,22 @@ export function App() {
 		<>
 			<BrowserRouter>
 				<Routes>
-					<Route path="/" element={<ListGraphics graphicsList={graphicsList} onRefresh={onRefreshGraphics} />} />
-					<Route path="/graphic/:localGraphicPath" element={<GraphicTester graphicsList={graphicsList} />} />
+					<Route
+						path="/"
+						element={
+							<ListGraphics
+								graphicsList={graphicsList}
+								onRefresh={onRefreshGraphics}
+								graphicsFolderName={graphicsFolderName}
+								onCloseFolder={() => {
+									setGraphicsList(null)
+									setGraphicsFolderName(null)
+									fileHandler.close()
+								}}
+							/>
+						}
+					/>
+					<Route path="/graphic/*" element={<GraphicTester graphicsList={graphicsList} />} />
 				</Routes>
 			</BrowserRouter>
 		</>

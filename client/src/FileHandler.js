@@ -8,6 +8,7 @@ class FileHandler extends EventEmitter {
 		this.fileChangeListeners = []
 		this.files = {}
 		this.dirs = {}
+		this.dirHandle = null
 	}
 	async init() {
 		this.triggerMonitor().catch(console.error)
@@ -17,8 +18,14 @@ class FileHandler extends EventEmitter {
 			mode: 'read',
 		})
 		this.dirHandle = dirHandle
-
-		return await this.listGraphics()
+	}
+	close() {
+		console.log('dirHandle', this.dirHandle)
+		this.dirHandle = null
+		this.monitoredHandles = {}
+		this.fileChangeListeners = []
+		this.files = {}
+		this.dirs = {}
 	}
 	async discoverFilesInDirectory(path, dirHandle) {
 		for await (const [key, handle] of dirHandle.entries()) {
