@@ -6,12 +6,14 @@
   "author": "Johan Nyman <johan@superfly.tv>",
   "license": "MIT",
   "scripts": {
+    "install": "npm run install:client",
     "install:client": "cd client && npm install",
     "build:client": "cd client && npm run build && cd ..",
-    "start": "node server/index.js",
+    "build": "npm run build:client",
     "dev:client": "cd client && npm run dev",
     "dev:server": "nodemon server/index.js --dev",
-    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\""
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "start": "node server/index.js"
   },
   "dependencies": {
     "express": "^4.21.2"

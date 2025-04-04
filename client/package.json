@@ -23,6 +23,7 @@
     "react": "^18.3.1",
     "react-bootstrap": "^2.10.6",
     "react-dom": "^18.3.1",
+    "react-router": "^7.4.1",
     "register-service-worker": "^1.7.2",
     "url": "^0.11.4"
   },

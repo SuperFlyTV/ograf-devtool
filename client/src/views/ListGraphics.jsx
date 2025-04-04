@@ -1,8 +1,9 @@
 import * as React from 'react'
 import { Table, Button } from 'react-bootstrap'
+import { Link } from 'react-router'
 import { GraphicIssues } from '../components/GraphicIssues'
 
-export function ListGraphics({ graphics, onSelect, onRefresh }) {
+export function ListGraphics({ graphicsList, onRefresh }) {
 	return (
 		<div className="container-md">
 			<div className="list-graphics card">
@@ -13,11 +14,11 @@ export function ListGraphics({ graphics, onSelect, onRefresh }) {
 							onRefresh()
 						}}
 					>
-						Refresh
+						Refresh list
 					</Button>
 				</div>
 
-				{graphics.length > 0 ? (
+				{graphicsList.length > 0 ? (
 					<Table striped bordered>
 						<thead>
 							<tr>
@@ -30,7 +31,7 @@ export function ListGraphics({ graphics, onSelect, onRefresh }) {
 							</tr>
 						</thead>
 						<tbody>
-							{graphics.map((graphic, i) => {
+							{graphicsList.map((graphic, i) => {
 								return (
 									<tr key={graphic.path}>
 										<td>{graphic.path}</td>
@@ -54,7 +55,9 @@ export function ListGraphics({ graphics, onSelect, onRefresh }) {
 											<GraphicIssues manifest={graphic.manifest} graphic={graphic} />
 										</td>
 										<td>
-											<Button onClick={() => onSelect(graphic)}>Select</Button>
+											<Link to={`graphic${graphic.path}`}>
+												<Button>Select</Button>
+											</Link>
 										</td>
 									</tr>
 								)
@@ -63,8 +66,8 @@ export function ListGraphics({ graphics, onSelect, onRefresh }) {
 					</Table>
 				) : (
 					<div>
-						<p>No graphics found in any the selected folder nor its subfolders</p>
-						<p>Reload the page to try again</p>
+						<p>No graphics found in the selected folder (nor any of its subfolders).</p>
+						<p>Please reload the page to try again.</p>
 					</div>
 				)}
 			</div>

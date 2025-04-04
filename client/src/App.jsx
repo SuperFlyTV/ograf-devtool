@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router'
 import { fileHandler } from './FileHandler'
 import { serviceWorkerHandler } from './ServiceWorkerHandler.js'
 import { InitialView, TroubleShoot } from './views/InitialView'
@@ -6,9 +7,7 @@ import { ListGraphics } from './views/ListGraphics'
 import { GraphicTester } from './views/GraphicTester.jsx'
 
 export function App() {
-	const [graphics, setGraphics] = React.useState(false)
-	const [selectedGraphic, setSelectedGraphic] = React.useState(null)
-
+	//  ----------- Initialize ServiceWorker -----------
 	const [serviceWorker, setServiceWorker] = React.useState(null)
 	const [serviceWorkerError, setServiceWorkerError] = React.useState(null)
 
@@ -29,25 +28,15 @@ export function App() {
 		}
 	}, [serviceWorker])
 
-	const onSelectGraphic = React.useCallback((graphic) => {
-		setSelectedGraphic(graphic)
-	}, [])
+	const [graphicsList, setGraphicsList] = React.useState(null)
 	const onRefreshGraphics = React.useCallback(() => {
-		setGraphics(false)
-		fileHandler.listGraphics().then(setGraphics).catch(console.error)
+		setGraphicsList(false)
+		fileHandler.listGraphics().then(setGraphicsList).catch(console.error)
 	}, [])
 
-	React.useEffect(() => {
-		const onLostAccessEvent = () => {
-			// This is called if the fileHandler has lost access to the directory.
-			setGraphics(false)
-		}
-		fileHandler.on('lostAccess', onLostAccessEvent)
-		return () => {
-			fileHandler.off('lostAccess', onLostAccessEvent)
-		}
-	}, [])
+	const [initialized, setInitialized] = React.useState(false)
 
+	// Initializing Service Worker:
 	if (!serviceWorker) {
 		return (
 			<div className="container">
@@ -59,7 +48,7 @@ export function App() {
 					</div>
 				) : (
 					<div className="alert alert-info">
-						<span>Initializing, please wait..</span>
+						<span>Initializing Service Worker, please wait..</span>
 					</div>
 				)}
 
@@ -69,21 +58,23 @@ export function App() {
 			</div>
 		)
 	}
+	// Select Graphics folder:
+	if (!graphicsList) {
+		return (
+			<>
+				<InitialView setGraphicsList={setGraphicsList} />
+			</>
+		)
+	}
 
 	return (
 		<>
-			{selectedGraphic ? (
-				<GraphicTester
-					graphic={selectedGraphic}
-					onExit={() => {
-						setSelectedGraphic(null)
-					}}
-				/>
-			) : graphics ? (
-				<ListGraphics graphics={graphics} onSelect={onSelectGraphic} onRefresh={onRefreshGraphics} />
-			) : (
-				<InitialView setGraphics={setGraphics} />
-			)}
+			<BrowserRouter>
+				<Routes>
+					<Route path="/" element={<ListGraphics graphicsList={graphicsList} onRefresh={onRefreshGraphics} />} />
+					<Route path="/graphic/:localGraphicPath" element={<GraphicTester graphicsList={graphicsList} />} />
+				</Routes>
+			</BrowserRouter>
 		</>
 	)
 }

@@ -32,6 +32,9 @@ class ServiceWorkerHandler {
 								result: 'NotFoundError',
 							})
 							issueTracker.add(`File "${msg.url}" was requested by the Graphic, but not found on disk.`)
+						} else if (`${error}`.includes('NotAllowedError')) {
+							// Not allowed access to the files anymore
+							console.error('Not allowed access to the files anymore')
 						} else {
 							console.error('readFile error', error)
 
@@ -58,24 +61,25 @@ class ServiceWorkerHandler {
 		console.log('Initializing Service Worker...')
 		let registeredNewServiceWorker = false
 		if (!this.pServiceWorker) {
-			// debounce:
+			// single run thing:
 			this.pServiceWorker = Promise.resolve().then(async () => {
 				this.fileHandler = fileHandler
 
-				const FILE_NAME = 'service-worker.js'
+				const FILE_NAME = '/service-worker.js'
 
-				const registrations = await navigator.serviceWorker.getRegistrations()
+				// const registrations = await navigator.serviceWorker.getRegistrations()
 
-				const alreadyRegistered = registrations.find((r) => r.active && r.active.scriptURL.includes(FILE_NAME))
-				if (alreadyRegistered) {
-					return alreadyRegistered
-				}
+				// const alreadyRegistered = registrations.find((r) => r.active && r.active.scriptURL.includes(FILE_NAME))
+				// if (alreadyRegistered) {
+				// 	return alreadyRegistered
+				// }
 
 				registeredNewServiceWorker = true
 				return new Promise((resolve, reject) => {
 					console.log('Registering Service Worker...')
+
 					register(FILE_NAME, {
-						registrationOptions: { scope: './' },
+						registrationOptions: { scope: '/' },
 						ready(registration) {
 							resolve(registration)
 						},

@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { Table, Button, ButtonGroup, Form, Accordion, Row, Col } from 'react-bootstrap'
+import { Link, useNavigate, useParams } from 'react-router'
 import { graphicResourcePath, usePromise } from '../lib/lib.js'
 import { Renderer } from '../renderer/Renderer.js'
 import { fileHandler } from '../FileHandler.js'
@@ -14,7 +15,40 @@ import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
 
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
 
-export function GraphicTester({ graphic, onExit }) {
+export function GraphicTester({ graphicsList }) {
+	const params = useParams()
+	console.log('graphicsList', graphicsList)
+
+	const graphic = React.useMemo(
+		() => {
+			if (!params.localGraphicPath) return null
+
+			return graphicsList.find((g) => g.path === `/${params.localGraphicPath}/`)
+		},
+		graphicsList,
+		params.localGraphicPath
+	)
+
+	if (!graphic) {
+		return (
+			<>
+				<div>
+					<p>No Graphic found for path: {params.localGraphicPath}</p>
+					<p>
+						<Link to="/">
+							<Button>👈Go back</Button>
+						</Link>
+					</p>
+				</div>
+			</>
+		)
+	} else {
+		return <GraphicTesterInner graphic={graphic} />
+	}
+}
+function GraphicTesterInner({ graphic }) {
+	// let navigate = useNavigate()
+
 	const [settings, setSettings] = React.useState(getDefaultSettings())
 
 	const onSettingsChange = React.useCallback((newSettings) => {
@@ -57,7 +91,7 @@ export function GraphicTester({ graphic, onExit }) {
 				rendererRef.current.setGraphic(graphic)
 			}
 		}
-	}, [])
+	}, [graphic])
 
 	React.useLayoutEffect(() => {
 		updateScale()
@@ -243,7 +277,9 @@ export function GraphicTester({ graphic, onExit }) {
 					<div className="graphic-tester card">
 						<div className="card-body">
 							<div>
-								<Button onClick={onExit}>👈Go back</Button>
+								<Link to="/">
+									<Button>👈Go back</Button>
+								</Link>
 							</div>
 
 							<div className="settings">

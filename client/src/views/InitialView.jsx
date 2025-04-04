@@ -4,7 +4,7 @@ import { fileHandler } from '../FileHandler'
 import superFlyLogoUrl from '../assets/SuperFly.tv_Logo_2020_v02.png'
 import ografLogoUrl from '../assets/ograf_logo_colour_draft.svg'
 
-export function InitialView({ setGraphics }) {
+export function InitialView({ setGraphicsList }) {
 	return (
 		<div className="initial-hero">
 			<div className="initial-hero-content">
@@ -44,7 +44,8 @@ export function InitialView({ setGraphics }) {
 								fileHandler
 									.init()
 									.then((graphics) => {
-										setGraphics(graphics)
+										console.log('graphics', graphics)
+										setGraphicsList(graphics)
 									})
 									.catch(console.error)
 							}}

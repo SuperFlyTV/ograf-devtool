@@ -61,6 +61,11 @@ function startServer(port, devMode) {
     const staticPath = path.resolve("./client/dist");
     console.log(`Serving static files from ${staticPath}`);
     app.use("/", express.static(staticPath));
+
+    // Serve the index file for any non static matching files:
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(staticPath, "index.html"));
+    });
   } else {
     console.log("Serving from Dev server");
 
