@@ -20,7 +20,6 @@ class FileHandler extends EventEmitter {
 		this.dirHandle = dirHandle
 	}
 	close() {
-		console.log('dirHandle', this.dirHandle)
 		this.dirHandle = null
 		this.monitoredHandles = {}
 		this.fileChangeListeners = []

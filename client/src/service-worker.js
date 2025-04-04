@@ -119,7 +119,29 @@ self.addEventListener('fetch', function (event) {
 				cache: 'no-store',
 				method: event.request.method,
 				headers: event.request.headers,
+			}).catch((error) => {
+				broadcastToParent.postMessage({
+					type: 'fetch-error',
+					url: newUrl,
+					message: `${error}`,
+				})
+
+				// console.error('fetch error', error)
+				return new Response(null, {
+					status: 500,
+					statusText: `${error}`,
+				})
+				// if (`${error}`.includes('failed')) {
+				// } else {
+				// }
 			})
 		)
+		// check if the url is in the same origin as the service worker:
+		if (!url.startsWith(self.location.origin)) {
+			broadcastToParent.postMessage({
+				type: 'fetch-from-outside',
+				url: newUrl,
+			})
+		}
 	}
 })

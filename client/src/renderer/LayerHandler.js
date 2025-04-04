@@ -103,7 +103,7 @@ export class LayerHandler {
 		// Catch any uncaught errors that may happen:
 		const orgConsoleError = console.error
 		console.error = (...args) => {
-			issueTracker.add(
+			issueTracker.addError(
 				`Uncaught error in Graphic when calling ${methodName}(): ${args.map((a) => `${a}`).join(', ')}`,
 				true
 			)
@@ -114,7 +114,7 @@ export class LayerHandler {
 
 			return r
 		} catch (err) {
-			issueTracker.add(`Error in Graphic when calling ${methodName}(): ${err}`)
+			issueTracker.addError(`Error in Graphic when calling ${methodName}(): ${err}`)
 			console.error(err)
 			return
 		} finally {

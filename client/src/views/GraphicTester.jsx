@@ -128,11 +128,14 @@ function GraphicTesterInner({ graphic }) {
 			listener.stop()
 		}
 	}, [])
-	const [issues, setIssues] = React.useState([])
+	const [errors, setErrors] = React.useState([])
+	const [warnings, setWarnings] = React.useState([])
 	React.useEffect(() => {
-		setIssues(issueTracker.issues)
+		setErrors(issueTracker.errors)
+		setWarnings(issueTracker.warnings)
 		const listener = issueTracker.listenToChanges(() => {
-			setIssues([...issueTracker.issues])
+			setErrors([...issueTracker.errors])
+			setWarnings([...issueTracker.warnings])
 		})
 		return () => {
 			listener.stop()
@@ -157,7 +160,7 @@ function GraphicTesterInner({ graphic }) {
 		await rendererRef.current.clearGraphic()
 		issueTracker.clear()
 		await reloadGraphicManifest()
-		await rendererRef.current.loadGraphic(settingsRef.current).catch(issueTracker.add)
+		await rendererRef.current.loadGraphic(settingsRef.current).catch(issueTracker.addError)
 
 		setIsReloading(true)
 	}, [])
@@ -193,7 +196,9 @@ function GraphicTesterInner({ graphic }) {
 						setTimeout(() => {
 							// if (!triggerReloadGraphicRef.current.activeAutoReload) return
 
-							rendererRef.current.invokeGraphicAction(action.action.type, action.action.params).catch(issueTracker.add)
+							rendererRef.current
+								.invokeGraphicAction(action.action.type, action.action.params)
+								.catch(issueTracker.addError)
 						}, delay)
 					}
 					if (triggerReloadGraphicRef.current.activeAutoReload) {
@@ -206,8 +211,8 @@ function GraphicTesterInner({ graphic }) {
 					}
 				} else {
 					// non-realtime
-					await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.add)
-					rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.add)
+					await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.addError)
+					rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.addError)
 				}
 			})
 			.catch(onError)
@@ -235,11 +240,11 @@ function GraphicTesterInner({ graphic }) {
 
 	const playTimeRef = React.useRef(0)
 	const setPlayTime = React.useCallback((time) => {
-		rendererRef.current.gotoTime(time).catch(issueTracker.add)
+		rendererRef.current.gotoTime(time).catch(issueTracker.addError)
 		playTimeRef.current = time
 	}, [])
 	const sentSetPlayTime = React.useCallback(async () => {
-		await rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.add)
+		await rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.addError)
 	}, [])
 
 	const scheduleRef = React.useRef([])
@@ -253,7 +258,7 @@ function GraphicTesterInner({ graphic }) {
 					triggerReloadGraphic()
 				}
 			} else {
-				rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.add)
+				rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.addError)
 			}
 		},
 		[settings]
@@ -262,7 +267,7 @@ function GraphicTesterInner({ graphic }) {
 		if (settings.realtime) {
 			// nothing?
 		} else {
-			await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.add)
+			await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.addError)
 		}
 	}, [settings])
 
@@ -270,7 +275,7 @@ function GraphicTesterInner({ graphic }) {
 	React.useEffect(() => {
 		if (!graphicManifest) reloadGraphicManifest().catch(onError)
 	}, [])
-	console.log('isReloading', isReloading)
+	// console.log('isReloading', isReloading)
 
 	return (
 		<SettingsContext.Provider value={{ settings, onChange: onSettingsChange }}>
@@ -318,6 +323,31 @@ function GraphicTesterInner({ graphic }) {
 									<div className="issues">
 										<div className="card">
 											{!isReloading ? <GraphicIssues manifest={graphicManifest} graphic={graphic} /> : null}
+
+											<div>
+												{errors.length ? (
+													<div className="alert alert-danger" role="alert">
+														Graphic Errors:
+														<ul>
+															{errors.map((issue, index) => (
+																<li key={index}>{issue}</li>
+															))}
+														</ul>
+													</div>
+												) : null}
+											</div>
+											<div>
+												{warnings.length ? (
+													<div className="alert alert-info" role="alert">
+														Graphic Warnings:
+														<ul>
+															{warnings.map((issue, index) => (
+																<li key={index}>{issue}</li>
+															))}
+														</ul>
+													</div>
+												) : null}
+											</div>
 										</div>
 									</div>
 								</>
@@ -348,20 +378,7 @@ function GraphicTesterInner({ graphic }) {
 									</div>
 								)}
 							</div>
-							<div>
-								{issues.length ? (
-									<div className="alert alert-danger" role="alert">
-										Graphic Errors:
-										<ul>
-											{issues.map((issue, index) => (
-												<li key={index}>
-													<pre>{issue}</pre>
-												</li>
-											))}
-										</ul>
-									</div>
-								) : null}
-							</div>
+
 							<div className="">
 								<div className="graphic-canvas-wrapper">
 									<div

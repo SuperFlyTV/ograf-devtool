@@ -1,34 +1,60 @@
 class IssueTracker {
 	constructor() {
-		this._issues = []
+		this._errors = []
+		this._warnings = []
 		this.listeners = []
 	}
-	add = (msg, dontTrace) => {
+	addError = (msg, dontTrace) => {
+		this._add(true, msg, dontTrace)
+	}
+	addWarning = (msg, dontTrace) => {
+		this._add(false, msg, dontTrace)
+	}
+	_add = (isError, msg, dontTrace) => {
 		if (!dontTrace) console.error(msg)
 		let str
-		if (typeof msg === 'object' && msg !== null) {
+		if (msg instanceof Error) {
+			str = `${msg}`
+			if (msg.stack) str += '\n' + msg.stack
+		} else if (msg instanceof Event) {
+			console.log(new Error().stack)
+
+			str = `${msg}`
+		} else if (typeof msg === 'object' && msg !== null) {
 			str = `${msg}`
 			if (msg.stack) str += '\n' + msg.stack
 		} else {
 			str = `${msg}`
 		}
 
-		const existing = this._issues.find((i) => i.msg === str)
+		const array = isError ? this._errors : this._warnings
+
+		const existing = array.find((i) => i.msg === str)
 		if (!existing) {
-			this._issues.push({ msg: str, time: Date.now(), count: 1 })
+			array.push({ msg: str, time: Date.now(), count: 1 })
 		} else {
 			existing.count++
 		}
 		this.onHasChanged()
 	}
 	clear = () => {
-		if (this._issues.length !== 0) {
-			this._issues.splice(0, 99999)
-			this.onHasChanged()
+		let changed = false
+
+		if (this._errors.length !== 0) {
+			this._errors.splice(0, 99999)
+			changed = true
 		}
+		if (this._warnings.length !== 0) {
+			this._warnings.splice(0, 99999)
+			changed = true
+		}
+		if (changed) this.onHasChanged()
 	}
-	get issues() {
-		return this._issues.map((i) => `${i.count > 1 ? `(${i.count}) ` : ''}${i.msg}`)
+	get errors() {
+		return this._errors.map((i) => `${i.count > 1 ? `(${i.count}) ` : ''}${i.msg}`)
+	}
+	get warnings() {
+		return this._warnings.map((i) => `${i.count > 1 ? `(${i.count}) ` : ''}${i.msg}`)
 	}
 	onHasChanged() {
 		if (this.hasChangedDelay) clearTimeout(this.hasChangedDelay)

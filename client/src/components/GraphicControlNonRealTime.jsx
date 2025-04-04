@@ -94,14 +94,14 @@ export function GraphicControlNonRealTime({
 													await sendSetActionsSchedule()
 													sentSetPlayTime()
 												})
-												.catch(issueTracker.add)
+												.catch(issueTracker.addError)
 										}}
 									>
 										Load Graphic
 									</Button>
 									<Button
 										onClick={() => {
-											rendererRef.current.clearGraphic().catch(issueTracker.add)
+											rendererRef.current.clearGraphic().catch(issueTracker.addError)
 										}}
 									>
 										Clear Graphic

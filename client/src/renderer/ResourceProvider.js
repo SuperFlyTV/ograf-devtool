@@ -18,7 +18,6 @@ export class ResourceProvider {
 		// Add a querystring, just to disable caching:
 		const modulePath = graphicResourcePath(graphicPath) + `?componentId=${componentId}` // `${this.serverApiUrl}/serverApi/v1/graphics/graphic/${id}/${version}/graphic`
 
-		// console.log('modulePath', modulePath)
 		// Load the Graphic module:
 		const module = await import(/* @vite-ignore */ modulePath)
 

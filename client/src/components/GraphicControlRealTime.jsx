@@ -36,14 +36,14 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 									<Button
 										onClick={() => {
 											issueTracker.clear()
-											rendererRef.current.loadGraphic(settings).catch(issueTracker.add)
+											rendererRef.current.loadGraphic(settings).catch(issueTracker.addError)
 										}}
 									>
 										Load Graphic
 									</Button>
 									<Button
 										onClick={() => {
-											rendererRef.current.clearGraphic().catch(issueTracker.add)
+											rendererRef.current.clearGraphic().catch(issueTracker.addError)
 										}}
 									>
 										Clear Graphic
@@ -57,7 +57,7 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 										<Button
 											onClick={() => {
 												issueTracker.clear()
-												rendererRef.current.updateAction({ data }).catch(issueTracker.add)
+												rendererRef.current.updateAction({ data }).catch(issueTracker.addError)
 											}}
 										>
 											Update
@@ -65,7 +65,7 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 										<Button
 											onClick={() => {
 												issueTracker.clear()
-												rendererRef.current.playAction({}).catch(issueTracker.add)
+												rendererRef.current.playAction({}).catch(issueTracker.addError)
 											}}
 										>
 											Play
@@ -73,7 +73,7 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 										<Button
 											onClick={() => {
 												issueTracker.clear()
-												rendererRef.current.stopAction({}).catch(issueTracker.add)
+												rendererRef.current.stopAction({}).catch(issueTracker.addError)
 											}}
 										>
 											Stop
@@ -110,7 +110,7 @@ function GraphicsActions({ manifest, rendererRef, schedule, setActionsSchedule }
 							action={action}
 							onAction={(actionId, data, e) => {
 								// Invoke action:
-								rendererRef.current.customAction(actionId, data).catch(issueTracker.add)
+								rendererRef.current.customAction(actionId, data).catch(issueTracker.addError)
 								if (e.shiftKey) {
 									// Add action to schedule, to run at next auto-reload:
 

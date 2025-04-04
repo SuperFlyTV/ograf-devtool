@@ -8,8 +8,6 @@ export async function setupSchemaValidator() {
 	}
 	const v = await _setupSchemaValidator({
 		fetch: async (url) => {
-			console.log('fetching', url)
-
 			const rewriteUrls = []
 			if (location.hostname.includes('localhost')) {
 				rewriteUrls.push({
@@ -41,7 +39,7 @@ export async function setupSchemaValidator() {
 		localStorage.setItem('schema-cache', JSON.stringify(v.cache))
 		cachedCache = v.cache
 	}
-	console.log('setupSchemaValidator', v)
+	console.debug('setupSchemaValidator', v)
 	return v.validate
 }
 
@@ -78,7 +76,6 @@ async function _setupSchemaValidator(
 			v.addSchema(cache[ref], ref)
 			return cache[ref]
 		} else {
-			console.log('fetching2', ref)
 			const content = await options.fetch(`${ref}?a=${Date.now()}`, {
 				cache: 'no-store',
 			})
@@ -134,9 +131,7 @@ async function _setupSchemaValidator(
 			return `${pathStr}: ${err.message}`
 		})
 
-		const customErrors = validateGraphicManifest(schema)
-
-		return [...customErrors, ...schemaErrors]
+		return validateGraphicManifest(schema, schemaErrors)
 	}
 	return {
 		validate: cachedValidator,
@@ -145,7 +140,7 @@ async function _setupSchemaValidator(
 }
 let cachedValidator = null
 
-export function validateGraphicManifest(graphicManifest) {
+export function validateGraphicManifest(graphicManifest, schemaErrors) {
 	const errors = []
 
 	// Find helpful issues that is not covered by the JSON schema
@@ -168,23 +163,53 @@ export function validateGraphicManifest(graphicManifest) {
 		}
 	}
 
+	for (const schemaError of schemaErrors) {
+		{
+			// : is not allowed to have the additional property "xyz"
+			const m = schemaError.match(/(.*)is not allowed to have the additional property "(.*)"/)
+			if (m) {
+				const path = m[1]
+				const prop = m[2]
+
+				errors.push(
+					`${path} is not allowed to have the additional property "${prop}". (Vendor-specific properties must be prefixed with "v_"!)`
+				)
+				continue
+			}
+		}
+
+		errors.push(schemaError)
+	}
+
 	return errors
 }
-export function validateGraphicModule(graphicModule) {
+export function validateGraphicModule(graphicModule, manifest) {
 	const errors = []
 
 	if (!graphicModule) return [`No graphic exported`]
 
-	if (typeof graphicModule.load !== 'function') errors.push('Graphic does not expose a load() method')
-	if (typeof graphicModule.dispose !== 'function') errors.push('Graphic does not expose a dispose() method')
-	if (typeof graphicModule.getStatus !== 'function') errors.push('Graphic does not expose a getStatus() method')
-	if (typeof graphicModule.updateAction !== 'function') errors.push('Graphic does not expose a updateAction() method')
-	if (typeof graphicModule.playAction !== 'function') errors.push('Graphic does not expose a playAction() method')
-	if (typeof graphicModule.stopAction !== 'function') errors.push('Graphic does not expose a stopAction() method')
-	if (typeof graphicModule.customAction !== 'function') errors.push('Graphic does not expose a customAction() method')
-	if (typeof graphicModule.goToTime !== 'function') errors.push('Graphic does not expose a goToTime() method')
-	if (typeof graphicModule.setActionsSchedule !== 'function')
-		errors.push('Graphic does not expose a setActionsSchedule() method')
+	const checkMethod = (methodName) => {
+		if (graphicModule[methodName] === undefined) errors.push(`Graphic does not have a ${methodName}() method`)
+		else if (typeof graphicModule[methodName] !== 'function')
+			errors.push(
+				`Graphic does not have a ${methodName}() method, instead there is a ${methodName} of type ${typeof graphicModule[
+					methodName
+				]}!`
+			)
+	}
+
+	checkMethod('load')
+	checkMethod('dispose')
+	checkMethod('getStatus')
+	checkMethod('updateAction')
+	checkMethod('playAction')
+	checkMethod('stopAction')
+	checkMethod('customAction')
+
+	if (manifest?.supportsNonRealTime) {
+		checkMethod('goToTime')
+		checkMethod('setActionsSchedule')
+	}
 
 	return errors
 }

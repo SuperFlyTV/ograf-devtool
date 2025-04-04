@@ -18,14 +18,17 @@ export function GraphicIssues({ manifest, graphic }) {
 				const element = document.createElement(elementName)
 
 				console.log('element', element)
-
-				setGraphicModuleErrors(validateGraphicModule(element))
+				if (manifest) {
+					setGraphicModuleErrors(validateGraphicModule(element, manifest))
+				} else {
+					setGraphicModuleErrors([])
+				}
 			})
 			.catch((e) => {
 				console.error(e)
 				setGraphicModuleErrors([`Error loading graphic: ${e.message || e}`])
 			})
-	}, [graphic.path, manifest?.main])
+	}, [graphic.path, manifest])
 
 	const validator = usePromise(async () => {
 		return setupSchemaValidator()
@@ -63,7 +66,7 @@ export function GraphicIssues({ manifest, graphic }) {
 		<>
 			{graphicManifestErrors.length ? (
 				<div className="alert alert-danger">
-					<div>Found a few issues in the Graphics manifest:</div>
+					<div>Found issues in the Graphics manifest:</div>
 					<div>
 						<ul>
 							{graphicManifestErrors.map((str, i) => {
@@ -75,7 +78,7 @@ export function GraphicIssues({ manifest, graphic }) {
 			) : null}
 			{graphicModuleErrors.length ? (
 				<div className="alert alert-danger">
-					<div>Found a few issues with the Graphic module:</div>
+					<div>Found issues with the Graphic module:</div>
 					<div>
 						<ul>
 							{graphicModuleErrors.map((str, i) => {
@@ -87,7 +90,7 @@ export function GraphicIssues({ manifest, graphic }) {
 			) : null}
 
 			{graphicManifestErrors.length === 0 && graphicModuleErrors.length === 0 ? (
-				<span>No issues found in graphic 👍</span>
+				<span>No issues found in the graphic manifest or code 👍</span>
 			) : null}
 		</>
 	)

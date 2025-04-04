@@ -31,7 +31,7 @@ class ServiceWorkerHandler {
 								reply: id,
 								result: 'NotFoundError',
 							})
-							issueTracker.add(`File "${msg.url}" was requested by the Graphic, but not found on disk.`)
+							issueTracker.addError(`File "${msg.url}" was requested by the Graphic, but not found on disk.`)
 						} else if (`${error}`.includes('NotAllowedError')) {
 							// Not allowed access to the files anymore
 							console.error('Not allowed access to the files anymore')
@@ -44,6 +44,12 @@ class ServiceWorkerHandler {
 							})
 						}
 					})
+			} else if (msg.type === 'fetch-from-outside') {
+				issueTracker.addWarning(
+					`Friendly notice: The external resource "${msg.url}" was fetched by the Graphic. This is allowed, but can be an issue in production in case of network connectivity issues.`
+				)
+			} else if (msg.type === 'fetch-error') {
+				issueTracker.addError(`There was an error when graphic fetched "${msg.url}": ${msg.message}`)
 			} else if (msg.reply !== undefined) {
 				const waiting = this.waitingReplies.get(msg.reply)
 				if (waiting) {
