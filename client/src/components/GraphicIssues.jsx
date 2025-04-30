@@ -1,13 +1,15 @@
 import * as React from 'react'
-import { setupSchemaValidator, validateGraphicModule } from '../lib/graphic/verify.js'
+import { setupSchemaValidator, validateGraphicModule, testGraphicModule } from '../lib/graphic/verify.js'
 import { usePromise } from '../lib/lib.js'
 import { ResourceProvider } from '../renderer/ResourceProvider.js'
+import { Button } from 'react-bootstrap'
 
 export function GraphicIssues({ manifest, graphic }) {
 	const [graphicManifestErrors, setGraphicManifestErrors] = React.useState([])
 	const [graphicModuleErrors, setGraphicModuleErrors] = React.useState([])
+	const [graphicModuleTestErrorLog, setGraphicModuleTestErrorLog] = React.useState(null)
 
-	console.log('graphic', graphic)
+	// console.log('graphic', graphic)
 
 	React.useEffect(() => {
 		const graphicPath = ResourceProvider.graphicPath(graphic.path, manifest?.main)
@@ -17,7 +19,7 @@ export function GraphicIssues({ manifest, graphic }) {
 				// Add element to DOM:
 				const element = document.createElement(elementName)
 
-				console.log('element', element)
+				// console.log('element', element)
 				if (manifest) {
 					setGraphicModuleErrors(validateGraphicModule(element, manifest))
 				} else {
@@ -33,6 +35,12 @@ export function GraphicIssues({ manifest, graphic }) {
 	const validator = usePromise(async () => {
 		return setupSchemaValidator()
 	}, [])
+
+	const runGraphicTest = React.useCallback(() => {
+		testGraphicModule(graphic, manifest, (testLog, status) => {
+			setGraphicModuleTestErrorLog({ testLog, status })
+		})
+	}, [graphic, manifest])
 
 	React.useEffect(() => {
 		if (!validator) {
@@ -90,7 +98,31 @@ export function GraphicIssues({ manifest, graphic }) {
 			) : null}
 
 			{graphicManifestErrors.length === 0 && graphicModuleErrors.length === 0 ? (
-				<span>No issues found in the graphic manifest or code 👍</span>
+				<>
+					<span>No issues found in the graphic manifest or code 👍</span>
+					<div>
+						<Button variant="outline-secondary" size="sm" onClick={() => runGraphicTest()}>
+							Run in-depth test
+						</Button>
+					</div>
+				</>
+			) : null}
+
+			{graphicModuleTestErrorLog ? (
+				<div
+					className={`alert ${
+						graphicModuleTestErrorLog.status === true
+							? 'alert-success'
+							: graphicModuleTestErrorLog.status === false
+							? 'alert-danger'
+							: 'alert-info'
+					}`}
+				>
+					<div>Test results:</div>
+					<div>
+						<pre>{graphicModuleTestErrorLog.testLog}</pre>
+					</div>
+				</div>
 			) : null}
 		</>
 	)

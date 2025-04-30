@@ -68,9 +68,6 @@ export class LayerHandler {
 		}
 	}
 
-	async getStatus() {
-		return this._handleError('getStatus', () => this.currentGraphic.element.getStatus(params))
-	}
 	async updateAction(params) {
 		return this._handleError('updateAction', () => this.currentGraphic.element.updateAction(params))
 	}

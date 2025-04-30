@@ -1,4 +1,6 @@
 import { Validator } from 'jsonschema'
+import { ResourceProvider } from '../../renderer/ResourceProvider.js'
+import { getDefaultDataFromSchema } from '../GDD/gdd/data.js'
 
 let cachedCache = null
 export async function setupSchemaValidator() {
@@ -39,7 +41,6 @@ export async function setupSchemaValidator() {
 		localStorage.setItem('schema-cache', JSON.stringify(v.cache))
 		cachedCache = v.cache
 	}
-	console.debug('setupSchemaValidator', v)
 	return v.validate
 }
 
@@ -200,7 +201,6 @@ export function validateGraphicModule(graphicModule, manifest) {
 
 	checkMethod('load')
 	checkMethod('dispose')
-	checkMethod('getStatus')
 	checkMethod('updateAction')
 	checkMethod('playAction')
 	checkMethod('stopAction')
@@ -212,4 +212,233 @@ export function validateGraphicModule(graphicModule, manifest) {
 	}
 
 	return errors
+}
+export function testGraphicModule(graphic, manifest, callback) {
+	// This runs a few tests on the module
+
+	let testLog = ''
+	let testStatus = undefined
+	let indentation = 0
+
+	const addLog = (log, status) => {
+		if (testLog) testLog += '\n'
+		testLog += '                   '.slice(0, indentation * 2)
+		testLog += log
+
+		console.log(log)
+
+		if (status === false) testStatus = status
+		if (status === true && testStatus === undefined) testStatus = status
+
+		callback(testLog, testStatus)
+	}
+	const chapter = async (name, cb) => {
+		addLog(name)
+		indentation++
+		const startTime = Date.now()
+		await cb()
+
+		const duration = Date.now() - startTime
+		addLog(`Finished executing in ${duration} ms`)
+
+		await sleep(100)
+
+		indentation--
+	}
+	const sleep = async (duration) => {
+		return new Promise((resolve) => setTimeout(resolve, duration))
+	}
+
+	const promiseTimeout = (promise, waitTime) => {
+		return Promise.race([
+			promise,
+			new Promise((resolve, reject) => {
+				setTimeout(() => {
+					reject(new Error(`Timeout, the Promise didn't resolve after ${waitTime} ms`))
+				}, waitTime || 3000)
+			}),
+		])
+	}
+	const checkReturnPayload = (payload, customCheck) => {
+		if (!customCheck) customCheck = {}
+
+		customCheck['statusCode'] = (value) => {
+			if (typeof value !== 'number')
+				throw new Error(`Bad return payload! Expected "statusCode" to be a number, got ${value} (${typeof value})`)
+		}
+		customCheck['statusMessage'] = (value) => {
+			if (value !== undefined && typeof value !== 'string')
+				throw new Error(`Bad return payload! Expected "statusMessage" to be a string, got ${value} (${typeof value})`)
+		}
+
+		try {
+			if (typeof payload !== 'object')
+				throw new Error(`Bad return payload! Expected an object, got ${payload} (${typeof payload})`)
+
+			if (payload == null) throw new Error(`Bad return payload! Expected an object, got null`)
+
+			for (const key of Object.keys(payload)) {
+				const check = customCheck[key]
+				if (check) check(payload[key])
+				else {
+					if (key.startsWith('v_')) continue
+					throw new Error(
+						`Bad return payload! Payload contains key "${key}" which is not allowed. (Use "v_" prefix for vendor-specific properties!)`
+					)
+				}
+			}
+		} catch (e) {
+			addLog(`${e}`, false)
+		}
+	}
+
+	const runTest = async () => {
+		console.log('--- Running Graphic test ---')
+
+		addLog(`This is a test that loads a Graphic into memory. Then it calls various`)
+		addLog(`methods on it and checks the replies, ensuring that it looks alright.`)
+		addLog(``)
+
+		if (!manifest) throw new Error(`No manifest loaded`)
+
+		let elementName
+		await chapter('Loading the Graphic module', async () => {
+			const graphicPath = ResourceProvider.graphicPath(graphic.path, manifest?.main)
+			elementName = await ResourceProvider.loadGraphic(graphicPath)
+		})
+
+		let realtimeAlternatives = []
+		if (manifest.supportsRealTime) realtimeAlternatives.push(true)
+		if (manifest.supportsNonRealTime) realtimeAlternatives.push(false)
+
+		for (const realtime of realtimeAlternatives) {
+			await chapter(`--- Testing ${realtime ? 'RealTime' : 'Non-RealTime'} mode ---`, async () => {
+				addLog(`Creating the HTML Element`)
+				const element = document.createElement(elementName)
+
+				await chapter(`Loading Graphic, by calling load()`, async () => {
+					const result = await promiseTimeout(
+						element.load({
+							renderType: realtime ? 'realtime' : 'non-realtime',
+						})
+					)
+					checkReturnPayload(result)
+				})
+
+				const initialData = manifest.schema ? getDefaultDataFromSchema(manifest.schema) : {}
+
+				if (realtime) {
+					await chapter(`Call updateAction({ data })`, async () => {
+						const payload = await promiseTimeout(
+							element.updateAction({
+								data: initialData,
+							})
+						)
+						checkReturnPayload(payload)
+					})
+					await chapter(`Call playAction({})`, async () => {
+						const payload = await promiseTimeout(
+							element.playAction({
+								// delta,
+								// goto,
+								// skipAnimation
+							})
+						)
+						checkReturnPayload(payload, {
+							currentStep: (value) => {
+								if (typeof value !== 'number')
+									throw new Error(
+										`Bad return payload! Expected "currentStep" to be a number, got ${value} (${typeof value})`
+									)
+							},
+						})
+					})
+					await chapter(`Call stopAction({})`, async () => {
+						const payload = await promiseTimeout(
+							element.stopAction({
+								// skipAnimation
+							})
+						)
+						checkReturnPayload(payload)
+					})
+				} else {
+					await chapter(`Call setActionsSchedule()`, async () => {
+						const payload = await promiseTimeout(
+							element.setActionsSchedule({
+								schedule: [
+									{
+										timestamp: 0,
+										action: {
+											type: 'updateAction',
+											params: { data: initialData },
+										},
+									},
+									{
+										timestamp: 1000,
+										action: {
+											type: 'playAction',
+											params: {
+												// delta,
+												// goto,
+												// skipAnimation
+											},
+										},
+									},
+									{
+										timestamp: 7000,
+										action: {
+											type: 'stopAction',
+											params: {
+												// skipAnimation
+											},
+										},
+									},
+								],
+							})
+						)
+						checkReturnPayload(payload)
+					})
+					await chapter(`Call goToTime({})`, async () => {
+						const payload = await promiseTimeout(
+							element.goToTime({
+								timestamp: 5000,
+							})
+						)
+						checkReturnPayload(payload)
+					})
+				}
+
+				// customAction?
+
+				await chapter(`Unloading Graphic, by calling dispose()`, async () => {
+					const payload = await promiseTimeout(
+						element.dispose({
+							renderType: realtime ? 'realtime' : 'non-realtime',
+						})
+					)
+					checkReturnPayload(payload)
+				})
+			})
+		}
+
+		addLog(`End of test`, true)
+	}
+
+	try {
+		runTest()
+			.catch((e) => {
+				console.error(e)
+				addLog(`Error thrown: ${e}`, false)
+			})
+			.finally(() => {
+				if (testStatus === true) {
+					addLog(`Everything looks ok!`)
+				} else {
+					addLog(`Uh-oh! Something went wrong, check the log above!`)
+				}
+			})
+	} catch (e) {
+		console.error(e)
+		addLog(`Error thrown: ${e}`, false)
+	}
 }
