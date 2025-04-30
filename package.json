@@ -6,7 +6,6 @@
   "author": "Johan Nyman <johan@superfly.tv>",
   "license": "MIT",
   "scripts": {
-    "postinstall": "yarn install:client",
     "install:client": "cd client && npm install",
     "build:client": "cd client && npm run build && cd ..",
     "build": "npm run build:client",
