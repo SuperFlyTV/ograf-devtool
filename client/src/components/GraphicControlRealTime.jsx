@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, Accordion, ButtonGroup } from 'react-bootstrap'
+import { Button, Accordion, ButtonGroup, InputGroup, Form, ButtonToolbar } from 'react-bootstrap'
 import { issueTracker } from '../renderer/IssueTracker.js'
 import { GDDGUI } from '../lib/GDD/gdd-gui.jsx'
 import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
@@ -16,6 +16,10 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 	const onDataSave = (d) => {
 		setData(JSON.parse(JSON.stringify(d)))
 	}
+
+	const [skipAnimation, setSkipAnimation] = React.useState(false)
+	const [gotoStep, setGotoStep] = React.useState(1)
+	const [deltaStep, setDeltaStep] = React.useState(1)
 
 	const supportsRealTime = manifest.supportsRealTime
 	return (
@@ -50,7 +54,17 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 									</Button>
 								</div>
 								<div>
-									<div>{manifest.schema && <GDDGUI schema={manifest.schema} data={data} setData={onDataSave} />}</div>
+									<div className="graphics-manifest-schema">
+										{manifest.schema && <GDDGUI schema={manifest.schema} data={data} setData={onDataSave} />}
+									</div>
+								</div>
+								<div>
+									<Form.Check
+										type="switch"
+										label="skipAnimation"
+										onChange={(e) => setSkipAnimation(e.target.checked)}
+										checked={skipAnimation}
+									/>
 								</div>
 								<div>
 									<ButtonGroup>
@@ -65,7 +79,11 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 										<Button
 											onClick={() => {
 												issueTracker.clear()
-												rendererRef.current.playAction({}).catch(issueTracker.addError)
+												rendererRef.current
+													.playAction({
+														skipAnimation,
+													})
+													.catch(issueTracker.addError)
 											}}
 										>
 											Play
@@ -73,12 +91,70 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 										<Button
 											onClick={() => {
 												issueTracker.clear()
-												rendererRef.current.stopAction({}).catch(issueTracker.addError)
+												rendererRef.current
+													.stopAction({
+														skipAnimation,
+													})
+													.catch(issueTracker.addError)
 											}}
 										>
 											Stop
 										</Button>
 									</ButtonGroup>
+								</div>
+
+								<div>
+									<ButtonToolbar aria-label="Toolbar with button groups">
+										<InputGroup className="me-2">
+											<Form.Control
+												type="number"
+												placeholder="Step"
+												value={gotoStep}
+												onChange={(e) => setGotoStep(parseInt(e.target.value, 10) || 0)}
+												style={{
+													width: '4em',
+												}}
+											/>
+											<Button
+												onClick={() => {
+													issueTracker.clear()
+													rendererRef.current
+														.playAction({
+															goto: gotoStep,
+															skipAnimation,
+														})
+														.catch(issueTracker.addError)
+												}}
+											>
+												Goto Step
+											</Button>
+										</InputGroup>
+
+										<InputGroup className="me-2">
+											<Form.Control
+												type="number"
+												placeholder="Step"
+												value={deltaStep}
+												onChange={(e) => setDeltaStep(parseInt(e.target.value, 10) || 0)}
+												style={{
+													width: '4em',
+												}}
+											/>
+											<Button
+												onClick={() => {
+													issueTracker.clear()
+													rendererRef.current
+														.playAction({
+															delta: deltaStep,
+															skipAnimation,
+														})
+														.catch(issueTracker.addError)
+												}}
+											>
+												Delta Step
+											</Button>
+										</InputGroup>
+									</ButtonToolbar>
 								</div>
 								<div>
 									<GraphicsActions
@@ -99,10 +175,15 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 	)
 }
 function GraphicsActions({ manifest, rendererRef, schedule, setActionsSchedule }) {
+	const customActionsList = Object.values(manifest.customActions || {})
+
+	if (customActionsList.length === 0) return null
+
 	return (
 		<>
+			<b>Custom Actions:</b>
 			<div className="graphics-actions">
-				{Object.values(manifest.customActions || {}).map((action) => {
+				{customActionsList.map((action) => {
 					return (
 						<GraphicAction
 							key={action.id}

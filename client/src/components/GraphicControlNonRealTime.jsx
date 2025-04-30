@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, Accordion, Form, ButtonGroup } from 'react-bootstrap'
+import { Button, Accordion, ButtonGroup, InputGroup, Form, ButtonToolbar } from 'react-bootstrap'
 import { issueTracker } from '../renderer/IssueTracker.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
@@ -24,6 +24,10 @@ export function GraphicControlNonRealTime({
 	const onDataSave = (d) => {
 		setData(JSON.parse(JSON.stringify(d)))
 	}
+
+	const [skipAnimation, setSkipAnimation] = React.useState(false)
+	const [gotoStep, setGotoStep] = React.useState(1)
+	const [deltaStep, setDeltaStep] = React.useState(1)
 
 	const supportsNonRealTime = manifest.supportsNonRealTime
 
@@ -107,8 +111,16 @@ export function GraphicControlNonRealTime({
 										Clear Graphic
 									</Button>
 								</div>
-								<div>
+								<div className="graphics-manifest-schema">
 									<div>{manifest.schema && <GDDGUI schema={manifest.schema} data={data} setData={onDataSave} />}</div>
+								</div>
+								<div>
+									<Form.Check
+										type="switch"
+										label="skipAnimation"
+										onChange={(e) => setSkipAnimation(e.target.checked)}
+										checked={skipAnimation}
+									/>
 								</div>
 								<div>
 									<ButtonGroup>
@@ -123,19 +135,60 @@ export function GraphicControlNonRealTime({
 										</Button>
 										<Button
 											onClick={() => {
-												addToSchedule(playTimeLocal, 'playAction', {})
+												addToSchedule(playTimeLocal, 'playAction', { skipAnimation })
 											}}
 										>
 											Play
 										</Button>
 										<Button
 											onClick={() => {
-												addToSchedule(playTimeLocal, 'stopAction', {})
+												addToSchedule(playTimeLocal, 'stopAction', { skipAnimation })
 											}}
 										>
 											Stop
 										</Button>
 									</ButtonGroup>
+								</div>
+								<div>
+									<ButtonToolbar aria-label="Toolbar with button groups">
+										<InputGroup className="me-2">
+											<Form.Control
+												type="number"
+												placeholder="Step"
+												value={gotoStep}
+												onChange={(e) => setGotoStep(parseInt(e.target.value, 10) || 0)}
+												style={{
+													width: '4em',
+												}}
+											/>
+											<Button
+												onClick={() => {
+													addToSchedule(playTimeLocal, 'playAction', { goto: gotoStep, skipAnimation })
+												}}
+											>
+												Goto Step
+											</Button>
+										</InputGroup>
+
+										<InputGroup className="me-2">
+											<Form.Control
+												type="number"
+												placeholder="Step"
+												value={deltaStep}
+												onChange={(e) => setDeltaStep(parseInt(e.target.value, 10) || 0)}
+												style={{
+													width: '4em',
+												}}
+											/>
+											<Button
+												onClick={() => {
+													addToSchedule(playTimeLocal, 'playAction', { delta: deltaStep, skipAnimation })
+												}}
+											>
+												Delta Step
+											</Button>
+										</InputGroup>
+									</ButtonToolbar>
 								</div>
 								<div>
 									<GraphicsActions

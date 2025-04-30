@@ -189,10 +189,13 @@ body {
 	display: flex;
 	// justify-content: space-between;
 	align-items: flex-start;
-	margin: 1em 0;
+
 	.graphics-action {
 		margin: 0.5em;
 	}
+}
+.graphics-manifest-schema {
+	margin: 1em;
 }
 
 .full-wrap {
