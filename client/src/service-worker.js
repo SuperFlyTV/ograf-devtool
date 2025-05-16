@@ -1,4 +1,4 @@
-const SW_VERSION = '2025-04-04T18:37:44.507Z' // Updated at build time
+const SW_VERSION = '2025-05-16T11:07:20.305Z' // Updated at build time
 
 let requestId = 0
 const requestMap = new Map()
@@ -137,7 +137,17 @@ self.addEventListener('fetch', function (event) {
 			})
 		)
 		// check if the url is in the same origin as the service worker:
-		if (!url.startsWith(self.location.origin)) {
+
+		const allowedOrigins = [self.location.origin, 'https://json-schema.org']
+
+		let ok = false
+		for (const origin of allowedOrigins) {
+			if (url.startsWith(origin)) {
+				ok = true
+				break
+			}
+		}
+		if (!ok) {
 			broadcastToParent.postMessage({
 				type: 'fetch-from-outside',
 				url: newUrl,
