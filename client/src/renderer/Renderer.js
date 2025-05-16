@@ -6,11 +6,16 @@ export class Renderer {
 		// This renderer has only one layer.
 		this.layer = new LayerHandler(containerElement, 'default-layer', 0)
 		this.graphicState = ''
+		this.data = {}
 	}
 
 	setGraphic(graphic) {
 		this.graphic = graphic
 	}
+	setData(data) {
+		this.data = data
+	}
+
 	/** Instantiate a Graphic on a RenderTarget. Returns when the load has finished. */
 	async loadGraphic(settings) {
 		if (this.graphicState.includes('pre')) throw new Error('loadGraphic called too quick')
@@ -20,7 +25,7 @@ export class Renderer {
 		try {
 			this.graphicState = 'pre-load'
 			this.loadGraphicStartTime = Date.now()
-			await this.layer.loadGraphic(settings, graphicPath)
+			await this.layer.loadGraphic(settings, graphicPath, this.data)
 			this.graphicState = 'post-load'
 			this.loadGraphicEndTime = Date.now()
 		} catch (e) {
@@ -46,12 +51,15 @@ export class Renderer {
 	}
 
 	async updateAction(params) {
+		if (!params.skipAnimation) delete params.skipAnimation
 		return this.layer.updateAction(params)
 	}
 	async playAction(params) {
+		if (!params.skipAnimation) delete params.skipAnimation
 		return this.layer.playAction(params)
 	}
 	async stopAction(params) {
+		if (!params.skipAnimation) delete params.skipAnimation
 		return this.layer.stopAction(params)
 	}
 

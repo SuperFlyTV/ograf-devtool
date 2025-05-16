@@ -36,6 +36,10 @@ export function GraphicControlNonRealTime({
 
 	const duration = settings.duration
 
+	if (playTimeLocal === 0) {
+		rendererRef.current.setData(data)
+	}
+
 	const updatePlayTime = React.useCallback(
 		(time) => {
 			time = parseInt(time)
@@ -53,6 +57,7 @@ export function GraphicControlNonRealTime({
 	)
 	const addToSchedule = React.useCallback(
 		(timestamp, type, params) => {
+			if (!params.skipAnimation) delete params.skipAnimation
 			console.log('addToSchedule', timestamp, type, params)
 			const newSchedule = [
 				...schedule,

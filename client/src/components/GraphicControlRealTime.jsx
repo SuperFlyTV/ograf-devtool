@@ -17,6 +17,8 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 		setData(JSON.parse(JSON.stringify(d)))
 	}
 
+	rendererRef.current.setData(data)
+
 	const [skipAnimation, setSkipAnimation] = React.useState(false)
 	const [gotoStep, setGotoStep] = React.useState(1)
 	const [deltaStep, setDeltaStep] = React.useState(1)

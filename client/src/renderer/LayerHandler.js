@@ -27,7 +27,7 @@ export class LayerHandler {
 		return [] // TODO
 	}
 
-	async loadGraphic(settings, graphicPath) {
+	async loadGraphic(settings, graphicPath, data) {
 		// Clear any existing GraphicInstance:
 
 		if (this.currentGraphic) {
@@ -54,6 +54,7 @@ export class LayerHandler {
 		await element.load({
 			// baseUrl: baseUrl, // `${this.graphicCache.serverApiUrl}/serverApi/v1/graphics/graphic/${id}/${version}`, // /resources/:localPath
 			renderType: settings.realtime ? 'realtime' : 'non-realtime',
+			data: data,
 		})
 	}
 	async clearGraphic() {
