@@ -55,6 +55,16 @@ export class LayerHandler {
 			// baseUrl: baseUrl, // `${this.graphicCache.serverApiUrl}/serverApi/v1/graphics/graphic/${id}/${version}`, // /resources/:localPath
 			renderType: settings.realtime ? 'realtime' : 'non-realtime',
 			data: data,
+			renderCharacteristics: {
+				resolution: {
+					width: settings.width,
+					height: settings.height,
+				},
+				// frameRate: 60,
+
+				// Vendor-specific:
+				_environment: 'OGraf DevTool',
+			},
 		})
 	}
 	async clearGraphic() {
