@@ -1,17 +1,29 @@
 import { Validator } from 'jsonschema'
 import { ResourceProvider } from '../../renderer/ResourceProvider.js'
 import { getDefaultDataFromSchema } from '../GDD/gdd/data.js'
+import { SW_VERSION } from '../sw-version.js'
 
 let cachedCache = null
 export async function setupSchemaValidator() {
 	if (!cachedCache) {
-		const cache = localStorage.getItem('schema-cache')
-		if (cache) cachedCache = JSON.parse(cache)
+		const cacheStr = localStorage.getItem('schema-cache')
+		if (cacheStr) {
+			try {
+				const cacheObj = JSON.parse(cacheStr)
+				if (cacheObj && cacheObj.sw_version === SW_VERSION && cacheObj.ttl > Date.now()) {
+					console.log('Using cached schema-cache from localStorage')
+					cachedCache = cacheObj.data
+				}
+			} catch (e) {
+				console.error('Failed to parse schema-cache from localStorage', e)
+			}
+		}
 	}
 	const v = await _setupSchemaValidator({
 		fetch: async (url) => {
 			const rewriteUrls = []
 			if (location.hostname.includes('localhost')) {
+				// This is to fix an issue with CORS:
 				rewriteUrls.push({
 					from: 'https://ograf.ebu.io/',
 					to: 'http://localhost:3100/ograf/',
@@ -38,7 +50,14 @@ export async function setupSchemaValidator() {
 	})
 
 	if (v.cache) {
-		localStorage.setItem('schema-cache', JSON.stringify(v.cache))
+		localStorage.setItem(
+			'schema-cache',
+			JSON.stringify({
+				sw_version: SW_VERSION,
+				ttl: Date.now() + 1000 * 60 * 60 * 24, // 1 day
+				data: v.cache,
+			})
+		)
 		cachedCache = v.cache
 	}
 	return v.validate
@@ -272,6 +291,8 @@ export function testGraphicModule(graphic, manifest, callback) {
 		}
 
 		try {
+			if (payload == undefined) return // No payload is ok
+
 			if (typeof payload !== 'object')
 				throw new Error(`Bad return payload! Expected an object, got ${payload} (${typeof payload})`)
 
@@ -296,7 +317,7 @@ export function testGraphicModule(graphic, manifest, callback) {
 		console.log('--- Running Graphic test ---')
 
 		addLog(`This is a test that loads a Graphic into memory. Then it calls various`)
-		addLog(`methods on it and checks the replies, ensuring that it looks alright.`)
+		addLog(`methods on it and checks the replies, ensuring that it performs as expected.`)
 		addLog(``)
 
 		if (!manifest) throw new Error(`No manifest loaded`)
