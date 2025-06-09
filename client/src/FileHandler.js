@@ -28,6 +28,10 @@ class FileHandler extends EventEmitter {
 	}
 	async discoverFilesInDirectory(path, dirHandle) {
 		for await (const [key, handle] of dirHandle.entries()) {
+			// Optimization
+			if (handle.name === '.git') continue
+			if (handle.name === 'node_modules') continue
+
 			const subPath = path + '/' + handle.name
 
 			if (handle.kind === 'directory') {
@@ -55,9 +59,10 @@ class FileHandler extends EventEmitter {
 		// List all graphics in the directory:
 		const graphics = []
 		for (const [key, file] of Object.entries(this.files)) {
-			if (file.handle.name === 'manifest.json') {
+			if (await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())) {
 				const graphic = {
-					path: key.slice(0, -'manifest.json'.length),
+					path: key,
+					folderPath: key.slice(0, -file.handle.name.length),
 				}
 				graphics.push(graphic)
 
@@ -76,6 +81,55 @@ class FileHandler extends EventEmitter {
 		}
 
 		return graphics
+	}
+	async isManifestFile(filePath, getFileContents) {
+		if (!filePath.endsWith('.json')) return false
+
+		// Use content to determine which files are manifest files:
+		//{
+		//  "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json"
+		//}
+
+		// console.log("---", filePath);
+		const fileContents = await getFileContents()
+		let contentStr = undefined
+		if (fileContents instanceof Buffer) {
+			try {
+				contentStr = fileContents.toString('utf8')
+			} catch (_err) {
+				// console.log(`isManifestFile "${filePath}" check failed`, _err)
+				return false
+			}
+		} else if (typeof fileContents === 'string') {
+			contentStr = fileContents
+		}
+		// const contentStr = await fs.promises.readFile(filePath, "utf-8");
+		const expectSchemaContent = `https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json`
+		if (
+			!(
+				typeof contentStr === 'string' &&
+				contentStr.includes(`"$schema"`) &&
+				contentStr.includes(`"${expectSchemaContent}"`)
+			)
+		) {
+			// console.log(`isManifestFile "${filePath}" check failed`, 'initial content')
+			return false
+		}
+
+		// Check that it's valid JSON:
+		try {
+			const content = JSON.parse(contentStr)
+
+			if (content.$schema !== expectSchemaContent) {
+				// console.log(`isManifestFile "${filePath}" check failed`, 'bad $schema', content.$schema, expectSchemaContent)
+				return false
+			}
+
+			return true
+		} catch (err) {
+			// console.error(`isManifestFile "${filePath}" check failed`, 'Invalid JSON in manifest file', filePath, err)
+			return false
+		}
 	}
 
 	async readFile(path) {
@@ -108,11 +162,11 @@ class FileHandler extends EventEmitter {
 				type: file.type,
 				arrayBuffer: await file.arrayBuffer(),
 			}
-		} catch (e) {
+		} catch (error) {
 			if (`${error}`.includes('NotAllowedError')) {
 				this.emit('lostAccess')
 			}
-			throw e
+			throw error
 		}
 	}
 

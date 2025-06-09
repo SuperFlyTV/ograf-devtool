@@ -12,7 +12,7 @@ export function GraphicIssues({ manifest, graphic }) {
 	// console.log('graphic', graphic)
 
 	React.useEffect(() => {
-		const graphicPath = ResourceProvider.graphicPath(graphic.path, manifest?.main)
+		const graphicPath = ResourceProvider.graphicPath(graphic.folderPath, manifest?.main)
 
 		ResourceProvider.loadGraphic(graphicPath)
 			.then((elementName) => {

@@ -70,7 +70,6 @@ function GraphicTesterInner({ graphic }) {
 
 	const updateScale = React.useCallback(() => {
 		if (previewContainerRef.current) {
-			console.log('settings.width', settings.width)
 			const containerWidth = previewContainerRef.current.clientWidth
 			const widthScale = containerWidth / settings.width
 
@@ -166,7 +165,7 @@ function GraphicTesterInner({ graphic }) {
 	}, [])
 
 	const reloadGraphicManifest = React.useCallback(async () => {
-		const url = graphicResourcePath(graphic.path, 'manifest.json')
+		const url = graphicResourcePath(graphic.path)
 		const r = await fetch(url)
 		const manifest = await r.json()
 		setGraphicManifest((prevValue) => {

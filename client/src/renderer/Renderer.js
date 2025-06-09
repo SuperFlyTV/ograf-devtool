@@ -20,7 +20,7 @@ export class Renderer {
 	async loadGraphic(settings) {
 		if (this.graphicState.includes('pre')) throw new Error('loadGraphic called too quick')
 
-		const graphicPath = ResourceProvider.graphicPath(this.graphic.path, this.graphic.manifest.main)
+		const graphicPath = ResourceProvider.graphicPath(this.graphic.folderPath, this.graphic.manifest.main)
 
 		try {
 			this.graphicState = 'pre-load'

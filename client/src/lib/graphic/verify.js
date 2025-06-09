@@ -87,7 +87,7 @@ async function _setupSchemaValidator(
 
 	const cache = options.getCache ? await options.getCache() : {}
 
-	const baseURL = `https://ograf.ebu.io/v1-draft-0/specification/json-schemas/graphics/schema.json`
+	const baseURL = `https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json`
 
 	const v = new Validator()
 	async function addRef(ref) {
@@ -165,6 +165,10 @@ export function validateGraphicManifest(graphicManifest, schemaErrors) {
 
 	// Find helpful issues that is not covered by the JSON schema
 
+	if (graphicManifest.$schema === 'https://ograf.ebu.io/v1-draft-0/specification/json-schemas/graphics/schema.json')
+		errors.push(
+			`The manifest $schema property is referencing the old "v1-draft-0". Update this to be "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json"`
+		)
 	if (graphicManifest.rendering !== undefined)
 		errors.push(
 			`The manifest has a "rendering" property. The properties in this has been moved to the top level of the manifest (as of 2025-03-10).`
@@ -324,7 +328,7 @@ export function testGraphicModule(graphic, manifest, callback) {
 
 		let elementName
 		await chapter('Loading the Graphic module', async () => {
-			const graphicPath = ResourceProvider.graphicPath(graphic.path, manifest?.main)
+			const graphicPath = ResourceProvider.graphicPath(graphic.folderPath, manifest?.main)
 			elementName = await ResourceProvider.loadGraphic(graphicPath)
 		})
 

@@ -31,7 +31,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 							<tr>
 								<th>Path</th>
 								<th>Name</th>
-								<th>ID-Version</th>
+								<th>ID</th>
 								<th>Capabilities</th>
 								<th>Issues</th>
 								<th></th>
@@ -44,7 +44,8 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 										<td>{graphic.path}</td>
 										<td>{graphic.manifest?.name}</td>
 										<td>
-											{graphic.manifest?.id}-{graphic.manifest?.version}
+											{graphic.manifest?.id}
+											{graphic.manifest?.version ? ` (version ${graphic.manifest?.version})` : ''}
 										</td>
 										<td>
 											<ul>

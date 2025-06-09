@@ -20,7 +20,7 @@ export function InitialView({ onGraphicsFolder }) {
 					<p>
 						This is a tool to help with developing <b>OGraf Graphics</b>.
 					</p>
-					<p>It has a control GUI and renders the OGraf Graphics, directly from your local hard drive.</p>
+					<p>It has a control GUI that renders the OGraf Graphics directly from your local hard drive.</p>
 
 					<p>
 						<i>
@@ -28,7 +28,7 @@ export function InitialView({ onGraphicsFolder }) {
 							<br /> you can download some examples&nbsp;
 							<a
 								href={`https://download-directory.github.io/?url=${encodeURIComponent(
-									'https://github.com/ebu/ograf/tree/main/v1-draft-0/examples'
+									'https://github.com/ebu/ograf/tree/main/v1/examples'
 								)}`}
 								target="_blank"
 							>
