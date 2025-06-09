@@ -121,12 +121,16 @@ body {
 // .graphic-tester {}
 
 .graphic-canvas {
-	position: relative;
+	position: absolute;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
 	overflow: hidden;
-
+}
+.checkered-bg {
 	$bg-color-color0: #bbb;
 	$bg-color-bg: #fff;
-
 	// Checkered background:
 	background-color: $bg-color-bg;
 	background-image: linear-gradient(45deg, $bg-color-color0 25%, transparent 25%),
@@ -135,6 +139,16 @@ body {
 		linear-gradient(-45deg, transparent 75%, $bg-color-color0 75%);
 	background-size: 20px 20px;
 	background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+.background-image {
+	position: absolute;
+	top: 0;
+	left: 0;
+	// right: 0;
+	// bottom: 0;
+	min-width: 100%;
+	min-height: 100%;
+	z-index: -1;
 }
 .auto-reload-bar {
 	width: 100%;
@@ -203,6 +217,15 @@ body {
 	.graphic-tester-render {
 		position: sticky;
 		top: 10px;
+
+		.graphic-tester-render-options {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			right: 0;
+			max-height: 80vh;
+			overflow-y: auto;
+		}
 	}
 	.graphic-canvas-wrapper {
 		position: relative;
@@ -212,6 +235,31 @@ body {
 		.graphic-canvas {
 			width: 100%;
 			height: 100%;
+		}
+	}
+}
+.image-list {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+
+	.thumbnail {
+		margin: 1em;
+		cursor: pointer;
+		border: 1px solid rgba(0, 0, 0, 0.3);
+		border-radius: 3px;
+
+		&:hover {
+			background-color: rgba(0, 0, 0, 0.1);
+		}
+
+		> label {
+			max-width: 100%;
+		}
+
+		> img {
+			max-width: 10em;
+			max-height: 10em;
 		}
 	}
 }

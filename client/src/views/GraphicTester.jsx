@@ -17,7 +17,6 @@ import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext
 
 export function GraphicTester({ graphicsList }) {
 	const params = useParams()
-	console.log('graphicsList', graphicsList)
 	let graphicId = params['*']
 	if (graphicId) graphicId = `/${graphicId}`
 
@@ -276,6 +275,8 @@ function GraphicTesterInner({ graphic }) {
 	}, [])
 	// console.log('isReloading', isReloading)
 
+	const [background, setBackground] = React.useState(cacheBackground)
+
 	return (
 		<SettingsContext.Provider value={{ settings, onChange: onSettingsChange }}>
 			<div className="full-wrap">
@@ -401,15 +402,35 @@ function GraphicTesterInner({ graphic }) {
 										>
 											<div
 												ref={canvasRef}
-												className="graphic-canvas"
+												className={'graphic-canvas' + (background ? '' : ' checkered-bg')}
 												style={{
 													position: 'relative',
 													display: 'block',
 													border: 'none',
+													// backgroundImage: background ? URL.createObjectURL(background) : undefined,
 												}}
 											></div>
+											{background === 'white' ? (
+												<div className="background-image" style={{ backgroundColor: 'white' }}></div>
+											) : background === 'black' ? (
+												<div className="background-image" style={{ backgroundColor: 'black' }}></div>
+											) : background ? (
+												<img className="background-image" src={URL.createObjectURL(background)}></img>
+											) : null}
 										</div>
 									</div>
+								</div>
+							</div>
+						</div>
+						<div className="graphic-tester-render-options">
+							<div className="card">
+								<div className="card-body">
+									<GraphicTesterOptions
+										setBackground={(bg) => {
+											cacheBackground = bg
+											setBackground(bg)
+										}}
+									/>
 								</div>
 							</div>
 						</div>
@@ -417,5 +438,124 @@ function GraphicTesterInner({ graphic }) {
 				</div>
 			</div>
 		</SettingsContext.Provider>
+	)
+}
+
+function GraphicTesterOptions({ setBackground }) {
+	const [changeBackground, setChangeBackground] = React.useState(false)
+	return (
+		<>
+			<Button
+				onClick={() => {
+					setChangeBackground(!changeBackground)
+				}}
+			>
+				🖼️ Change Background
+			</Button>
+
+			{changeBackground ? <GraphicTesterOptionsSetBackground setBackground={setBackground} /> : null}
+		</>
+	)
+}
+
+let cacheBackground = null // Just a simple way to retain the background when switching graphics..
+
+function GraphicTesterOptionsSetBackground({ setBackground }) {
+	const [imageList, setImageList] = React.useState([])
+	const [reloading, setReloading] = React.useState(false)
+
+	const reloadImages = React.useCallback(async () => {
+		setReloading(true)
+		Promise.resolve()
+			.then(async () => {
+				await fileHandler.discoverFiles()
+
+				const imageFiles = []
+
+				for (const [key, file] of Object.entries(fileHandler.files)) {
+					if (
+						!(
+							file.handle.name.endsWith('.png') ||
+							file.handle.name.endsWith('.jpg') ||
+							file.handle.name.endsWith('.jpeg') ||
+							file.handle.name.endsWith('.gif') ||
+							file.handle.name.endsWith('.svg') ||
+							file.handle.name.endsWith('.webp')
+						)
+					)
+						continue
+
+					const fileContent = await file.handle.getFile()
+
+					imageFiles.push({
+						key,
+						file,
+						fileContent,
+					})
+				}
+				imageFiles.sort((a, b) => a.key.localeCompare(b.key))
+
+				setImageList(imageFiles)
+
+				setReloading(false)
+			})
+			.catch(console.error)
+	}, [])
+
+	return (
+		<div>
+			{
+				<div className="image-list">
+					<div className="thumbnail" title="Default background" onClick={() => setBackground(null)}>
+						<div
+							className="checkered-bg"
+							style={{
+								width: '10em',
+								height: '10em',
+							}}
+						></div>
+					</div>
+					<div className="thumbnail" title="White background" onClick={() => setBackground('white')}>
+						<div
+							style={{
+								width: '10em',
+								height: '10em',
+								backgroundColor: 'white',
+							}}
+						></div>
+					</div>
+					<div className="thumbnail" title="Black background" onClick={() => setBackground('black')}>
+						<div
+							style={{
+								width: '10em',
+								height: '10em',
+								backgroundColor: 'black',
+							}}
+						></div>
+					</div>
+
+					{imageList.map((image) => {
+						return (
+							<div
+								className="thumbnail"
+								key={image.key}
+								title={image.key}
+								onClick={() => setBackground(image.fileContent)}
+							>
+								<img src={URL.createObjectURL(image.fileContent)}></img>
+							</div>
+						)
+					})}
+				</div>
+			}
+
+			{imageList.length === 0 ? <div>Click to look for images in your local folder:</div> : null}
+
+			{reloading ? (
+				<Button disabled={true}>🖼️ Looking...</Button>
+			) : (
+				<Button onClick={reloadImages}>🖼️ Look for images</Button>
+			)}
+		</div>
 	)
 }
