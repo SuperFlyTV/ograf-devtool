@@ -1,5 +1,10 @@
 import * as React from 'react'
-import { setupSchemaValidator, validateGraphicModule, testGraphicModule } from '../lib/graphic/verify.js'
+import {
+	setupSchemaValidator,
+	validateGraphicModule,
+	testGraphicModule,
+	testGraphicManifestFileNames,
+} from '../lib/graphic/verify.js'
 import { usePromise } from '../lib/lib.js'
 import { ResourceProvider } from '../renderer/ResourceProvider.js'
 import { Button } from 'react-bootstrap'
@@ -9,7 +14,7 @@ export function GraphicIssues({ manifest, graphic }) {
 	const [graphicModuleErrors, setGraphicModuleErrors] = React.useState([])
 	const [graphicModuleTestErrorLog, setGraphicModuleTestErrorLog] = React.useState(null)
 
-	// console.log('graphic', graphic)
+	const graphicManifestFileErrors = testGraphicManifestFileNames(graphic)
 
 	React.useEffect(() => {
 		const graphicPath = ResourceProvider.graphicPath(graphic.folderPath, manifest?.main)
@@ -72,13 +77,16 @@ export function GraphicIssues({ manifest, graphic }) {
 
 	return (
 		<>
-			{graphicManifestErrors.length ? (
+			{graphicManifestErrors.length || graphicManifestFileErrors.length ? (
 				<div className="alert alert-danger">
 					<div>Found issues in the Graphics manifest:</div>
 					<div>
 						<ul>
+							{graphicManifestFileErrors.map((str, i) => {
+								return <li key={i}>{linebreaks(str)}</li>
+							})}
 							{graphicManifestErrors.map((str, i) => {
-								return <li key={i}>{str}</li>
+								return <li key={i}>{linebreaks(str)}</li>
 							})}
 						</ul>
 					</div>
@@ -90,7 +98,7 @@ export function GraphicIssues({ manifest, graphic }) {
 					<div>
 						<ul>
 							{graphicModuleErrors.map((str, i) => {
-								return <li key={i}>{str}</li>
+								return <li key={i}>{linebreaks(str)}</li>
 							})}
 						</ul>
 					</div>
@@ -126,4 +134,14 @@ export function GraphicIssues({ manifest, graphic }) {
 			) : null}
 		</>
 	)
+}
+function linebreaks(str) {
+	return str.split('\n').map((line, i) => {
+		return (
+			<span key={i}>
+				{line}
+				<br />
+			</span>
+		)
+	})
 }

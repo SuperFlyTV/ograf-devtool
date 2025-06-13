@@ -467,3 +467,14 @@ export function testGraphicModule(graphic, manifest, callback) {
 		addLog(`Error thrown: ${e}`, false)
 	}
 }
+export function testGraphicManifestFileNames(graphic) {
+	const errors = []
+
+	if (graphic.path && !graphic.path.endsWith('.ograf')) {
+		errors.push(
+			`The manifest file name should end with ".ograf", got "${graphic.path}".\n(This requirement was added to the OGraf specification 2025-06-13, please change the filename.)`
+		)
+	}
+
+	return errors
+}

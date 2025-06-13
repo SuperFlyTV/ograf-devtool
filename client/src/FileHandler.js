@@ -59,31 +59,25 @@ class FileHandler extends EventEmitter {
 		// List all graphics in the directory:
 		const graphics = []
 		for (const [key, file] of Object.entries(this.files)) {
-			if (await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())) {
+			const manifest = await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())
+			if (manifest) {
 				const graphic = {
 					path: key,
 					folderPath: key.slice(0, -file.handle.name.length),
+					manifest,
 				}
 				graphics.push(graphic)
-
-				// Check if the manifest is correct
-				const manifestStr = await (await file.handle.getFile()).text()
-				let manifest = null
-				try {
-					manifest = JSON.parse(manifestStr)
-				} catch (e) {
-					console.error(`Error parsing manifest.json (${key}): `)
-					graphic.manifestParseError = e
-					continue
-				}
-				graphic.manifest = manifest
 			}
 		}
 
 		return graphics
 	}
-	async isManifestFile(filePath, getFileContents) {
-		if (!filePath.endsWith('.json')) return false
+	async isManifestFile(filePath, getFileContents, strict) {
+		// Note: The .ograf requirement was added ~2025-06-13,
+		// So we could enable this quick-check at a later time, to speed up the lookup.
+		if (strict) {
+			if (!filePath.endsWith('.ograf')) return false
+		}
 
 		// Use content to determine which files are manifest files:
 		//{
@@ -125,7 +119,7 @@ class FileHandler extends EventEmitter {
 				return false
 			}
 
-			return true
+			return content
 		} catch (err) {
 			// console.error(`isManifestFile "${filePath}" check failed`, 'Invalid JSON in manifest file', filePath, err)
 			return false

@@ -29,7 +29,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 					<Table striped bordered>
 						<thead>
 							<tr>
-								<th>Path</th>
+								<th>Manifest path</th>
 								<th>Name</th>
 								<th>ID</th>
 								<th>Capabilities</th>
