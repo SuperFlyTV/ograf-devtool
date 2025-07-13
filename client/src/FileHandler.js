@@ -59,12 +59,13 @@ class FileHandler extends EventEmitter {
 		// List all graphics in the directory:
 		const graphics = []
 		for (const [key, file] of Object.entries(this.files)) {
-			const manifest = await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())
-			if (manifest) {
+			const o = await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())
+			if (o) {
 				const graphic = {
 					path: key,
 					folderPath: key.slice(0, -file.handle.name.length),
-					manifest,
+					manifest: o.manifest,
+					manifestParseError: o.error,
 				}
 				graphics.push(graphic)
 			}
@@ -73,11 +74,28 @@ class FileHandler extends EventEmitter {
 		return graphics
 	}
 	async isManifestFile(filePath, getFileContents, strict) {
-		// Note: The .ograf requirement was added ~2025-06-13,
-		// So we could enable this quick-check at a later time, to speed up the lookup.
+		// Note: The file name requirement was first added ~2025-06-13 (*.ograf),
+		// and later (2025-07-02) changed to *.ograf.json.
 		if (strict) {
-			if (!filePath.endsWith('.ograf')) return false
+			if (!filePath.endsWith('.ograf.json')) return null
 		}
+
+		// Only support one of these extensions:
+		if (
+			!filePath.endsWith('.manifest') &&
+			!filePath.endsWith('.json') &&
+			!filePath.endsWith('.ograf.json') &&
+			!filePath.endsWith('.ograf')
+		)
+			return null
+
+		// Filter away some commonly known NOT manifest files:
+		if (
+			filePath.endsWith('package-lock.json') ||
+			filePath.endsWith('package.json') ||
+			filePath.endsWith('tsconfig.json')
+		)
+			return null
 
 		// Use content to determine which files are manifest files:
 		//{
@@ -92,37 +110,52 @@ class FileHandler extends EventEmitter {
 				contentStr = fileContents.toString('utf8')
 			} catch (_err) {
 				// console.log(`isManifestFile "${filePath}" check failed`, _err)
-				return false
+				return null
 			}
 		} else if (typeof fileContents === 'string') {
 			contentStr = fileContents
 		}
-		// const contentStr = await fs.promises.readFile(filePath, "utf-8");
-		const expectSchemaContent = `https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json`
-		if (
-			!(
-				typeof contentStr === 'string' &&
-				contentStr.includes(`"$schema"`) &&
-				contentStr.includes(`"${expectSchemaContent}"`)
-			)
-		) {
-			// console.log(`isManifestFile "${filePath}" check failed`, 'initial content')
-			return false
+		if (typeof contentStr !== 'string') {
+			console.error(`Weird: expected string, got ${typeof contentStr} for "${filePath}"`)
+			return null
 		}
 
+		// Does it look like a manifest at all?
+		if (
+			!contentStr.includes('{') &&
+			!contentStr.includes(`"$schema"`) &&
+			!contentStr.includes('"https://ograf.ebu.io/') // like in the $schema
+		)
+			return null
+
 		// Check that it's valid JSON:
+		let error = null
 		try {
 			const content = JSON.parse(contentStr)
 
+			// Filter away some commonly known NOT manifest files:
+
+			if (
+				typeof content.$schema === 'string' &&
+				!content.$schema.includes(`ograf`) // Some non-ograf json
+			)
+				return null
+
+			const expectSchemaContent = `https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json`
+
 			if (content.$schema !== expectSchemaContent) {
-				// console.log(`isManifestFile "${filePath}" check failed`, 'bad $schema', content.$schema, expectSchemaContent)
-				return false
+				error = `File "${filePath}" does not contain a valid manifest schema reference. (It must contain "$schema": "${expectSchemaContent}")`
 			}
 
-			return content
+			return {
+				manifest: content,
+				error: error,
+			}
 		} catch (err) {
-			// console.error(`isManifestFile "${filePath}" check failed`, 'Invalid JSON in manifest file', filePath, err)
-			return false
+			return {
+				manifest: null,
+				error: `File "${filePath}" does not contain valid JSON. (Error: ${err.message})`,
+			}
 		}
 	}
 

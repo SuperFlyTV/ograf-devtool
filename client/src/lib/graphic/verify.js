@@ -470,10 +470,17 @@ export function testGraphicModule(graphic, manifest, callback) {
 export function testGraphicManifestFileNames(graphic) {
 	const errors = []
 
-	if (graphic.path && !graphic.path.endsWith('.ograf')) {
-		errors.push(
-			`The manifest file name should end with ".ograf", got "${graphic.path}".\n(This requirement was added to the OGraf specification 2025-06-13, please change the filename.)`
-		)
+	if (graphic.path) {
+		// The filename was required to be "*.ograf" for a short time, later changed to "*.ograf.json"
+		if (graphic.path.endsWith('.ograf')) {
+			errors.push(
+				`The manifest file name should end with ".ograf.json", got "${graphic.path}".\n(This requirement was changed in the OGraf specification from "*.ograf" to "*.ograf.json" 2025-07-13, please modify the filename.)`
+			)
+		} else if (!graphic.path.endsWith('.ograf.json')) {
+			errors.push(
+				`The manifest file name should end with ".ograf.json", got "${graphic.path}".\n(This requirement was added to the OGraf specification 2025-07-13, please modify the filename.)`
+			)
+		}
 	}
 
 	return errors

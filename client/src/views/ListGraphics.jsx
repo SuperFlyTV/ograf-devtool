@@ -42,9 +42,9 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 								return (
 									<tr key={graphic.path}>
 										<td>{graphic.path}</td>
-										<td>{graphic.manifest?.name}</td>
+										<td>{graphic.manifest?.name ?? `N/A`}</td>
 										<td>
-											{graphic.manifest?.id}
+											{graphic.manifest?.id ?? ''}
 											{graphic.manifest?.version ? ` (version ${graphic.manifest?.version})` : ''}
 										</td>
 										<td>
@@ -56,7 +56,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 										<td>
 											{graphic.manifestParseError ? (
 												<div className="alert alert-danger">
-													<div>Error parsing manifest.json:</div>
+													<div>Error in manifest file:</div>
 													<div>{graphic.manifestParseError.toString()}</div>
 												</div>
 											) : null}
