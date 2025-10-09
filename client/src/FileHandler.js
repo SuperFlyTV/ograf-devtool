@@ -76,18 +76,22 @@ class FileHandler extends EventEmitter {
 	async isManifestFile(filePath, getFileContents, strict) {
 		// Note: The file name requirement was first added ~2025-06-13 (*.ograf),
 		// and later (2025-07-02) changed to *.ograf.json.
-		if (strict) {
-			if (!filePath.endsWith('.ograf.json')) return null
-		}
+		// According to the OGraf specification, manifest files MUST end with .ograf.json
 
-		// Only support one of these extensions:
-		if (
-			!filePath.endsWith('.manifest') &&
-			!filePath.endsWith('.json') &&
-			!filePath.endsWith('.ograf.json') &&
-			!filePath.endsWith('.ograf')
-		)
-			return null
+		// Only support .ograf.json extension (as per specification)
+		if (!filePath.endsWith('.ograf.json')) {
+			// For backward compatibility, also support legacy extensions if not in strict mode
+			if (strict !== false) {
+				return null
+			}
+			// Legacy support: also check for old extensions
+			if (
+				!filePath.endsWith('.manifest') &&
+				!filePath.endsWith('.json') &&
+				!filePath.endsWith('.ograf')
+			)
+				return null
+		}
 
 		// Filter away some commonly known NOT manifest files:
 		if (
