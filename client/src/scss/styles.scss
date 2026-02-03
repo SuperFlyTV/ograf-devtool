@@ -275,3 +275,30 @@ body {
 		}
 	}
 }
+
+.graphic-thumbnail {
+	width: 18rem;
+	margin: 10px;
+	display: inline-block;
+
+	position: relative;
+
+	.graphic-canvas-wrapper {
+		position: relative;
+		width: 100%;
+		aspect-ratio: 1920 / 1080;
+		background: rgba(230, 230, 255, 0.5);
+		.graphic-canvas {
+			width: 100%;
+			height: 100%;
+		}
+	}
+	.transparent-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		z-index: 999;
+	}
+}

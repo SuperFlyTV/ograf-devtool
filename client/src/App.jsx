@@ -4,6 +4,7 @@ import { fileHandler } from './FileHandler'
 import { serviceWorkerHandler } from './ServiceWorkerHandler.js'
 import { InitialView, TroubleShoot } from './views/InitialView'
 import { ListGraphics } from './views/ListGraphics'
+import { ListGraphicsThumbnails } from './views/ListGraphicsThumbnails'
 import { GraphicTester } from './views/GraphicTester.jsx'
 
 export function App() {
@@ -94,6 +95,21 @@ export function App() {
 						path="/"
 						element={
 							<ListGraphics
+								graphicsList={graphicsList}
+								onRefresh={onRefreshGraphics}
+								graphicsFolderName={graphicsFolderName}
+								onCloseFolder={() => {
+									setGraphicsList(null)
+									setGraphicsFolderName(null)
+									fileHandler.close()
+								}}
+							/>
+						}
+					/>
+					<Route
+						path="/thumbnails"
+						element={
+							<ListGraphicsThumbnails
 								graphicsList={graphicsList}
 								onRefresh={onRefreshGraphics}
 								graphicsFolderName={graphicsFolderName}

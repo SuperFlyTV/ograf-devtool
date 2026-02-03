@@ -23,6 +23,11 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 					>
 						Pick another folder
 					</Button>
+					<div className="float-end">
+						<Link to={`/thumbnails`}>
+							<Button>View Thumbnails</Button>
+						</Link>
+					</div>
 				</div>
 
 				{graphicsList.length > 0 ? (
@@ -63,7 +68,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 											<GraphicIssues manifest={graphic.manifest} graphic={graphic} />
 										</td>
 										<td>
-											<Link to={`graphic${graphic.path}`}>
+											<Link to={`/graphic${graphic.path}`}>
 												<Button>Select</Button>
 											</Link>
 										</td>
