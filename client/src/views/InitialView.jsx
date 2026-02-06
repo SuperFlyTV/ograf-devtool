@@ -6,8 +6,84 @@ import ografLogoUrl from '../assets/ograf_logo_colour_draft.svg'
 import { serviceWorkerHandler } from '../ServiceWorkerHandler'
 
 export function InitialView({ onGraphicsFolder }) {
+	const [isDragging, setIsDragging] = React.useState(false)
+	const [error, setError] = React.useState(null)
+
+	const handleFolderSelect = React.useCallback(
+		async (dirHandle) => {
+			try {
+				fileHandler.dirHandle = dirHandle
+				onGraphicsFolder({
+					graphicsList: await fileHandler.listGraphics(),
+					graphicsFolderName: fileHandler.dirHandle.name,
+				})
+			} catch (err) {
+				console.error(err)
+				setError(err.message)
+			}
+		},
+		[onGraphicsFolder]
+	)
+
+	const handleDragOver = React.useCallback((e) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setIsDragging(true)
+	}, [])
+
+	const handleDragEnter = React.useCallback((e) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setIsDragging(true)
+	}, [])
+
+	const handleDragLeave = React.useCallback((e) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setIsDragging(false)
+	}, [])
+
+	const handleDrop = React.useCallback(
+		async (e) => {
+			e.preventDefault()
+			e.stopPropagation()
+			setIsDragging(false)
+			setError(null)
+
+			try {
+				// Get the first item from the drop
+				const items = e.dataTransfer.items
+				if (items && items.length > 0) {
+					const item = items[0]
+
+					// Check if the browser supports getAsFileSystemHandle
+					if (item.getAsFileSystemHandle) {
+						const handle = await item.getAsFileSystemHandle()
+						if (handle.kind === 'directory') {
+							await handleFolderSelect(handle)
+						} else {
+							setError('Please drop a folder, not a file')
+						}
+					} else {
+						setError('Drag and drop folders is not supported in this browser. Please use the button instead.')
+					}
+				}
+			} catch (err) {
+				console.error(err)
+				setError(err.message || 'Failed to process dropped folder')
+			}
+		},
+		[handleFolderSelect]
+	)
+
 	return (
-		<div className="initial-hero">
+		<div
+			className={`initial-hero ${isDragging ? 'dragging' : ''}`}
+			onDragOver={handleDragOver}
+			onDragEnter={handleDragEnter}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
+		>
 			<div className="initial-hero-content">
 				<div>
 					<h1>
@@ -38,19 +114,30 @@ export function InitialView({ onGraphicsFolder }) {
 						</i>
 					</p>
 
-					<p>Start the DevTool by selecting a folder that contains Ograf Graphics in any of its subfolders.</p>
+					<p>
+						Start the DevTool by selecting a folder that contains Ograf Graphics in any of its subfolders.
+					</p>
+					<p>
+						<strong>Drag and drop a folder here</strong> or click the button below:
+					</p>
+					{error && (
+						<div className="alert alert-danger" role="alert">
+							{error}
+						</div>
+					)}
 					<p>
 						<Button
 							onClick={() => {
+								setError(null)
 								fileHandler
 									.init()
 									.then(async () => {
-										onGraphicsFolder({
-											graphicsList: await fileHandler.listGraphics(),
-											graphicsFolderName: fileHandler.dirHandle.name,
-										})
+										await handleFolderSelect(fileHandler.dirHandle)
 									})
-									.catch(console.error)
+									.catch((err) => {
+										console.error(err)
+										setError(err.message)
+									})
 							}}
 						>
 							Select local folder
