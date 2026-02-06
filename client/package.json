@@ -3,10 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run update-sw-version && vite",
-    "build": "npm run update-sw-version && vite build --emptyOutDir",
-    "preview": "vite preview",
-    "update-sw-version": "node scripts/update-sw-version.js"
+    "dev": "vite",
+    "build": "vite build --emptyOutDir",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@sofie-automation/code-standard-preset": "^2.5.2",

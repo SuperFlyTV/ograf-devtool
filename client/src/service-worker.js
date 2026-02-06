@@ -1,4 +1,4 @@
-const SW_VERSION = '2026-02-03T14:13:28.664Z' // Updated at build time
+const SW_VERSION = '__BUILD_VERSION__' // Generated at build time
 
 let requestId = 0
 const requestMap = new Map()
