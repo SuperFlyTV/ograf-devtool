@@ -159,6 +159,7 @@ function GraphicsThumbnail({ graphic, i }) {
 
 			Promise.resolve()
 				.then(async () => {
+					await rendererRef.current.setData(data.current)
 					if (rendererAnimationState.current === 'initial') {
 						rendererAnimationState.current = 'animate-in'
 
