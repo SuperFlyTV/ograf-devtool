@@ -108,13 +108,26 @@ body {
 	align-items: center;
 	height: 100vh;
 
+	transition: background-color 0.2s ease;
+
+	&.dragging {
+		background-color: rgba(50, 150, 255, 0.1);
+		outline: 3px dashed rgba(50, 150, 255, 0.6);
+		outline-offset: -10px;
+	}
+
 	.initial-hero-content {
 		text-align: center;
 		color: #fff;
+		pointer-events: none; // Allow drag events to bubble through
 	}
 	a {
 		color: #bbf;
 		text-decoration: underline;
+		pointer-events: all; // Re-enable pointer events for links
+	}
+	button {
+		pointer-events: all; // Re-enable pointer events for buttons
 	}
 }
 
