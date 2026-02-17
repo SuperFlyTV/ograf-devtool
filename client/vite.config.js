@@ -4,7 +4,8 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { defineConfig } from 'vite'
 import { buildSync } from 'esbuild'
 
-// import react from '@vitejs/plugin-react'
+// Generate version once for entire build to ensure sync between main bundle and service worker
+const BUILD_VERSION = new Date().toISOString()
 
 export default defineConfig({
 	root: path.resolve(__dirname, 'src'),
@@ -28,6 +29,9 @@ export default defineConfig({
 		outDir: '../dist',
 	},
 	base: '/',
+	define: {
+		'__BUILD_VERSION__': JSON.stringify(BUILD_VERSION),
+	},
 
 	plugins: [
 		// ...
@@ -42,6 +46,9 @@ export default defineConfig({
 					bundle: true,
 					entryPoints: [path.join(process.cwd(), 'src/service-worker.js')],
 					outfile: path.join(process.cwd(), 'dist/service-worker.js'),
+					define: {
+						'__BUILD_VERSION__': JSON.stringify(BUILD_VERSION),
+					},
 				})
 			},
 		},

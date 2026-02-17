@@ -1,1 +1,1 @@
-export const SW_VERSION = '2026-02-03T14:13:28.664Z' // Updated at build time
+export const SW_VERSION = '__BUILD_VERSION__' // Generated at build time
