@@ -9,7 +9,6 @@ WORKDIR /opt
 COPY ./package.json ./package.json
 COPY ./server ./server
 
-COPY ./client/scripts ./client/scripts
 COPY ./client/src ./client/src
 COPY ./client/assets ./client/assets
 COPY ./client/package.json ./client/package.json
