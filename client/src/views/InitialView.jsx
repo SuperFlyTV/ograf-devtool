@@ -114,15 +114,28 @@ export function InitialView({ onGraphicsFolder }) {
 						</i>
 					</p>
 
-					<p>
-						Start the DevTool by selecting a folder that contains Ograf Graphics in any of its subfolders.
-					</p>
+					<p>Start the DevTool by selecting a folder that contains Ograf Graphics in any of its subfolders.</p>
 					<p>
 						<strong>Drag and drop a folder here</strong> or click the button below:
 					</p>
 					{error && (
 						<div className="alert alert-danger" role="alert">
 							{error}
+						</div>
+					)}
+					{!('showDirectoryPicker' in window) && (
+						<div className="alert alert-danger">
+							<p>
+								Sorry, this tool uses the window.showDirectoryPicker API to function, which is not supported in your
+								browser.
+							</p>
+							<p>
+								Please use a{' '}
+								<a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker#browser_compatibility">
+									supported
+								</a>{' '}
+								browser.
+							</p>
 						</div>
 					)}
 					<p>
