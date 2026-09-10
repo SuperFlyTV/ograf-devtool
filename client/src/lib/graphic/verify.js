@@ -207,7 +207,9 @@ export function validateGraphicManifest(graphicManifest, schemaErrors) {
 
 	let defaultData = null
 	try {
-		defaultData = getDefaultDataFromSchema(graphicManifest.schema)
+		if (graphicManifest.schema) {
+			defaultData = getDefaultDataFromSchema(graphicManifest.schema)
+		}
 	} catch (err) {
 		errors.push(`Error generating default values from schema: ${err.message}`)
 	}
