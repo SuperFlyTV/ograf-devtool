@@ -3,8 +3,8 @@ import { Button, Accordion, ButtonGroup, InputGroup, Form, ButtonToolbar } from 
 import { issueTracker } from '../renderer/IssueTracker.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
-import { GDDGUI } from '../lib/GDD/gdd-gui.jsx'
-import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
+import { OGrafForm } from '../lib/GDD/ograf-form.jsx'
+import { getDefaultDataFromSchema } from 'ograf-form'
 
 export function GraphicControlNonRealTime({
 	rendererRef,
@@ -117,7 +117,9 @@ export function GraphicControlNonRealTime({
 									</Button>
 								</div>
 								<div className="graphics-manifest-schema">
-									<div>{manifest.schema && <GDDGUI schema={manifest.schema} data={data} setData={onDataSave} />}</div>
+									<div>
+										{manifest.schema && <OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />}
+									</div>
 								</div>
 								<div>
 									<Form.Check

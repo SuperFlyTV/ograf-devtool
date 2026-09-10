@@ -19,6 +19,7 @@
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.3",
     "jsonschema": "^1.4.1",
+    "ograf-form": "^1.0.0",
     "react": "^18.3.1",
     "react-bootstrap": "^2.10.6",
     "react-dom": "^18.3.1",

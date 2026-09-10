@@ -1,7 +1,7 @@
 import { Validator } from 'jsonschema'
 import { ResourceProvider } from '../../renderer/ResourceProvider.js'
-import { getDefaultDataFromSchema } from '../GDD/gdd/data.js'
 import { SW_VERSION } from '../sw-version.js'
+import { getDefaultDataFromSchema, validateDataSimple } from 'ograf-form'
 
 let cachedCache = null
 export async function setupSchemaValidator() {
@@ -203,6 +203,19 @@ export function validateGraphicManifest(graphicManifest, schemaErrors) {
 		}
 
 		errors.push(schemaError)
+	}
+
+	let defaultData = null
+	try {
+		defaultData = getDefaultDataFromSchema(graphicManifest.schema)
+	} catch (err) {
+		errors.push(`Error generating default values from schema: ${err.message}`)
+	}
+	if (defaultData) {
+		const result = validateDataSimple(graphicManifest.schema, defaultData, '')
+		for (const error of result.errors) {
+			errors.push(`Bad default value in schema: ${error}`)
+		}
 	}
 
 	return errors

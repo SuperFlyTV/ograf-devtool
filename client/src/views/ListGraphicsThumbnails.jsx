@@ -5,7 +5,7 @@ import { graphicResourcePath, usePromise } from '../lib/lib.js'
 import { getDefaultSettings } from '../contexts/SettingsContext.js'
 import { Renderer } from '../renderer/Renderer.js'
 import { fileHandler } from '../FileHandler.js'
-import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
+import { getDefaultDataFromSchema } from 'ograf-form'
 
 export function ListGraphicsThumbnails({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName }) {
 	return (

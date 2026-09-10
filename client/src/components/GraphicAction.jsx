@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Button } from 'react-bootstrap'
-import { GDDGUI } from '../lib/GDD/gdd-gui.jsx'
-import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
+import { OGrafForm } from '../lib/GDD/ograf-form.jsx'
+import { getDefaultDataFromSchema } from 'ograf-form'
 
 export function GraphicAction({ action, onAction }) {
 	const initialData = action.schema ? getDefaultDataFromSchema(action.schema) : {}
@@ -19,7 +19,7 @@ export function GraphicAction({ action, onAction }) {
 				<h5>{action.name ?? action.id}</h5>
 			</div>
 			<div className="card-body">
-				<div>{schema && <GDDGUI schema={schema} data={data} setData={onDataSave} />}</div>
+				<div>{schema && <OGrafForm schema={schema} data={data} setData={onDataSave} />}</div>
 				<Button
 					onClick={(e) => {
 						onAction(action.id, data, e)

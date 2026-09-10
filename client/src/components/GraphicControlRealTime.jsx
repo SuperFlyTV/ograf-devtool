@@ -1,8 +1,8 @@
 import * as React from 'react'
 import { Button, Accordion, ButtonGroup, InputGroup, Form, ButtonToolbar } from 'react-bootstrap'
 import { issueTracker } from '../renderer/IssueTracker.js'
-import { GDDGUI } from '../lib/GDD/gdd-gui.jsx'
-import { getDefaultDataFromSchema } from '../lib/GDD/gdd/data.js'
+import { OGrafForm } from '../lib/GDD/ograf-form.jsx'
+import { getDefaultDataFromSchema } from 'ograf-form'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
 
@@ -57,7 +57,7 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 								</div>
 								<div>
 									<div className="graphics-manifest-schema">
-										{manifest.schema && <GDDGUI schema={manifest.schema} data={data} setData={onDataSave} />}
+										{manifest.schema && <OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />}
 									</div>
 								</div>
 								<div>
