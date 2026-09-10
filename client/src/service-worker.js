@@ -138,7 +138,7 @@ self.addEventListener('fetch', function (event) {
 		)
 		// check if the url is in the same origin as the service worker:
 
-		const allowedOrigins = [self.location.origin, 'https://json-schema.org']
+		const allowedOrigins = [self.location.origin, 'https://json-schema.org', 'chrome-extension://']
 
 		let ok = false
 		for (const origin of allowedOrigins) {
