@@ -18,8 +18,9 @@
   "dependencies": {
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.3",
+    "dom-to-image-more": "^3.10.2",
     "jsonschema": "^1.4.1",
-    "ograf-form": "^1.0.0",
+    "ograf-form": "^1.1.0",
     "react": "^18.3.1",
     "react-bootstrap": "^2.10.6",
     "react-dom": "^18.3.1",

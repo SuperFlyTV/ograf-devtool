@@ -2,7 +2,7 @@ import { ResourceProvider } from './ResourceProvider.js'
 import { issueTracker } from './IssueTracker.js'
 
 export class LayerHandler {
-	constructor(containerElement, id, zIndex) {
+	constructor(containerElement, id, zIndex, shadowDomMode = 'closed') {
 		this.id = id
 		this.currentGraphic = null
 
@@ -16,7 +16,7 @@ export class LayerHandler {
 		this.element.style.zIndex = zIndex
 
 		// Create shadow DOM root (used to isolate styles):
-		this.shadowRoot = this.element.attachShadow({ mode: 'closed' })
+		this.shadowRoot = this.element.attachShadow({ mode: shadowDomMode })
 
 		containerElement.appendChild(this.element)
 	}

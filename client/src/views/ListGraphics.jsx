@@ -27,6 +27,10 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 						<Link to={`/thumbnails`}>
 							<Button>View Thumbnails</Button>
 						</Link>
+						{' '}
+						<Link to={`/generate-thumbnails`}>
+							<Button variant="success">🖼️ Generate Thumbnails</Button>
+						</Link>
 					</div>
 				</div>
 

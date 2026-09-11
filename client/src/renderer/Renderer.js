@@ -2,9 +2,10 @@ import { LayerHandler } from './LayerHandler'
 import { ResourceProvider } from './ResourceProvider'
 
 export class Renderer {
-	constructor(containerElement) {
+	constructor(containerElement, options = {}) {
+		const shadowDomMode = options.shadowDomMode ?? 'closed'
 		// This renderer has only one layer.
-		this.layer = new LayerHandler(containerElement, 'default-layer', 0)
+		this.layer = new LayerHandler(containerElement, 'default-layer', 0, shadowDomMode)
 		this.graphicState = ''
 		this.data = {}
 	}

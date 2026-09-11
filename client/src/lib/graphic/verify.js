@@ -205,18 +205,18 @@ export function validateGraphicManifest(graphicManifest, schemaErrors) {
 		errors.push(schemaError)
 	}
 
-	let defaultData = null
-	try {
-		if (graphicManifest.schema) {
+	if (graphicManifest.schema) {
+		let defaultData = null
+		try {
 			defaultData = getDefaultDataFromSchema(graphicManifest.schema)
+		} catch (err) {
+			errors.push(`Error generating default values from schema: ${err.message}`)
 		}
-	} catch (err) {
-		errors.push(`Error generating default values from schema: ${err.message}`)
-	}
-	if (defaultData) {
-		const result = validateDataSimple(graphicManifest.schema, defaultData, '')
-		for (const error of result.errors) {
-			errors.push(`Bad default value in schema: ${error}`)
+		if (defaultData) {
+			const result = validateDataSimple(graphicManifest.schema, defaultData, '')
+			for (const error of result.errors) {
+				errors.push(`Bad default value in schema: ${error}`)
+			}
 		}
 	}
 

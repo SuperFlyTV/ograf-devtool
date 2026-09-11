@@ -15,7 +15,7 @@ class FileHandler extends EventEmitter {
 
 		const dirHandle = await window.showDirectoryPicker({
 			id: 'ebu-graphics-devtool',
-			mode: 'read',
+			mode: 'readwrite',
 		})
 		this.dirHandle = dirHandle
 	}
@@ -263,6 +263,47 @@ class FileHandler extends EventEmitter {
 				this.fileChangeListeners.splice(i, 1)
 			},
 		}
+	}
+
+	/**
+	 * Write a Blob to a path under the root directory handle.
+	 * Creates intermediate directories as needed.
+	 * @param {string} path - Path relative to root, e.g. "/my-graphic/thumbnails/1280x720.png"
+	 * @param {Blob} blob - Content to write
+	 */
+	async writeFile(path, blob) {
+		if (!this.dirHandle) throw new Error('No directory handle open')
+
+		// Strip leading slash and split into segments
+		const segments = path.replace(/^\//, '').split('/')
+		const fileName = segments.pop()
+
+		// Traverse/create directories
+		let currentDir = this.dirHandle
+		for (const segment of segments) {
+			currentDir = await currentDir.getDirectoryHandle(segment, { create: true })
+		}
+
+		// Write file
+		const fileHandle = await currentDir.getFileHandle(fileName, { create: true })
+		const writable = await fileHandle.createWritable()
+		await writable.write(blob)
+		await writable.close()
+
+		// Invalidate any cached entry so it is re-discovered
+		const fullPath = '/' + [...segments, fileName].join('/')
+		delete this.files[fullPath]
+	}
+
+	/**
+	 * Write a manifest object back to its file on disk.
+	 * @param {object} graphic - Graphic entry from listGraphics()
+	 * @param {object} manifest - Updated manifest object
+	 */
+	async writeManifest(graphic, manifest) {
+		const json = JSON.stringify(manifest, null, '\t')
+		const blob = new Blob([json], { type: 'application/json' })
+		await this.writeFile(graphic.path, blob)
 	}
 }
 

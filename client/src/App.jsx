@@ -6,6 +6,7 @@ import { InitialView, TroubleShoot } from './views/InitialView'
 import { ListGraphics } from './views/ListGraphics'
 import { ListGraphicsThumbnails } from './views/ListGraphicsThumbnails'
 import { GraphicTester } from './views/GraphicTester.jsx'
+import { ThumbnailGeneratorView } from './views/ThumbnailGeneratorView.jsx'
 
 export function App() {
 	//  ----------- Initialize ServiceWorker -----------
@@ -110,6 +111,21 @@ export function App() {
 						path="/thumbnails"
 						element={
 							<ListGraphicsThumbnails
+								graphicsList={graphicsList}
+								onRefresh={onRefreshGraphics}
+								graphicsFolderName={graphicsFolderName}
+								onCloseFolder={() => {
+									setGraphicsList(null)
+									setGraphicsFolderName(null)
+									fileHandler.close()
+								}}
+							/>
+						}
+					/>
+					<Route
+						path="/generate-thumbnails"
+						element={
+							<ThumbnailGeneratorView
 								graphicsList={graphicsList}
 								onRefresh={onRefreshGraphics}
 								graphicsFolderName={graphicsFolderName}
