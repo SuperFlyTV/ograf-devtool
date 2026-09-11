@@ -31,8 +31,7 @@ export function ListGraphicsThumbnails({ graphicsList, onRefresh, onCloseFolder,
 					<div className="float-end">
 						<Link to={`/`}>
 							<Button>View List</Button>
-						</Link>
-						{' '}
+						</Link>{' '}
 						<Link to={`/generate-thumbnails`}>
 							<Button variant="success">🖼️ Generate Thumbnails</Button>
 						</Link>

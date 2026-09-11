@@ -73,29 +73,12 @@ class FileHandler extends EventEmitter {
 
 		return graphics
 	}
-	async isManifestFile(filePath, getFileContents, strict) {
+	async isManifestFile(filePath, getFileContents, _strict) {
 		// Note: The file name requirement was first added ~2025-06-13 (*.ograf),
 		// and later (2025-07-02) changed to *.ograf.json.
-		if (strict) {
-			if (!filePath.endsWith('.ograf.json')) return null
-		}
-
-		// Only support one of these extensions:
-		if (
-			!filePath.endsWith('.manifest') &&
-			!filePath.endsWith('.json') &&
-			!filePath.endsWith('.ograf.json') &&
-			!filePath.endsWith('.ograf')
-		)
-			return null
-
-		// Filter away some commonly known NOT manifest files:
-		if (
-			filePath.endsWith('package-lock.json') ||
-			filePath.endsWith('package.json') ||
-			filePath.endsWith('tsconfig.json')
-		)
-			return null
+		// This was previously only enforced under the strict flag, but as of
+		// 2026-09-11, its enforced all the time.
+		if (!filePath.endsWith('.ograf.json')) return null
 
 		// Use content to determine which files are manifest files:
 		//{
