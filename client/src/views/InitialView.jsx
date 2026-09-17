@@ -1,13 +1,28 @@
 import * as React from 'react'
-import { Button } from 'react-bootstrap'
+import { Button, Form, Modal } from 'react-bootstrap'
 import { fileHandler } from '../FileHandler'
+import { remoteHandler, isGithubRateLimited, formatDiscoveryProgress } from '../RemoteHandler'
+import { githubAuth } from '../GithubAuth'
 import superFlyLogoUrl from '../assets/SuperFly.tv_Logo_2020_v02.png'
 import ografLogoUrl from '../assets/ograf_logo_colour_draft.svg'
 import { serviceWorkerHandler } from '../ServiceWorkerHandler'
 
-export function InitialView({ onGraphicsFolder }) {
+export function InitialView({
+	onGraphicsFolder,
+	error: externalError,
+	showGithubSignIn: externalShowGithubSignIn,
+	onGithubSignIn,
+}) {
 	const [isDragging, setIsDragging] = React.useState(false)
 	const [error, setError] = React.useState(null)
+	const [isSigningIntoGithub, setIsSigningIntoGithub] = React.useState(false)
+	const [showRemoteModal, setShowRemoteModal] = React.useState(false)
+	const remotePlaceholderUrl = 'https://github.com/ebu/ograf/tree/main/v1/examples'
+	const [remoteUrl, setRemoteUrl] = React.useState('')
+	const [remoteError, setRemoteError] = React.useState(null)
+	const [isLoadingRemote, setIsLoadingRemote] = React.useState(false)
+	const [remoteProgress, setRemoteProgress] = React.useState(null)
+	const [showGithubSignIn, setShowGithubSignIn] = React.useState(false)
 
 	const handleFolderSelect = React.useCallback(
 		async (dirHandle) => {
@@ -16,6 +31,7 @@ export function InitialView({ onGraphicsFolder }) {
 				onGraphicsFolder({
 					graphicsList: await fileHandler.listGraphics(),
 					graphicsFolderName: fileHandler.dirHandle.name,
+					source: 'local',
 				})
 			} catch (err) {
 				console.error(err)
@@ -24,6 +40,60 @@ export function InitialView({ onGraphicsFolder }) {
 		},
 		[onGraphicsFolder]
 	)
+
+	const loadRemoteUrl = React.useCallback(
+		async (url) => {
+			setRemoteError(null)
+			setShowGithubSignIn(false)
+			setIsLoadingRemote(true)
+			setRemoteProgress(null)
+			try {
+				await remoteHandler.init(url, setRemoteProgress)
+				onGraphicsFolder({
+					graphicsList: await remoteHandler.listGraphics(setRemoteProgress),
+					graphicsFolderName: url,
+					source: 'remote',
+				})
+				setShowRemoteModal(false)
+			} catch (err) {
+				console.error(err)
+				setRemoteError(err.message)
+				setShowGithubSignIn(isGithubRateLimited())
+			} finally {
+				setIsLoadingRemote(false)
+			}
+		},
+		[onGraphicsFolder]
+	)
+
+	const handleRemoteUrlSelect = React.useCallback(
+		async (e) => {
+			e.preventDefault()
+
+			let url = remoteUrl.trim()
+			if (!url) url = remotePlaceholderUrl
+
+			if (!url) return
+
+			await loadRemoteUrl(url)
+		},
+		[remoteUrl, loadRemoteUrl]
+	)
+
+	const handleGithubSignIn = React.useCallback(async () => {
+		try {
+			console.log('a')
+			await githubAuth.signIn()
+			console.log('b')
+			const url = remoteUrl.trim() || remotePlaceholderUrl
+			console.log('c')
+			await loadRemoteUrl(url)
+			console.log('d')
+		} catch (err) {
+			console.error(err)
+			setRemoteError(err.message)
+		}
+	}, [remoteUrl, loadRemoteUrl])
 
 	const handleDragOver = React.useCallback((e) => {
 		e.preventDefault()
@@ -118,9 +188,31 @@ export function InitialView({ onGraphicsFolder }) {
 					<p>
 						<strong>Drag and drop a folder here</strong> or click the button below:
 					</p>
-					{error && (
+					{(error || externalError) && (
 						<div className="alert alert-danger" role="alert">
-							{error}
+							{error || externalError}
+							{externalShowGithubSignIn && (
+								<div className="mt-2">
+									<Button
+										size="sm"
+										variant="dark"
+										disabled={isSigningIntoGithub}
+										onClick={() => {
+											setIsSigningIntoGithub(true)
+											githubAuth
+												.signIn()
+												.then(() => onGithubSignIn?.())
+												.catch((err) => {
+													console.error(err)
+													setError(err.message)
+												})
+												.finally(() => setIsSigningIntoGithub(false))
+										}}
+									>
+										Sign in with GitHub
+									</Button>
+								</div>
+							)}
 						</div>
 					)}
 					{!('showDirectoryPicker' in window) && (
@@ -154,6 +246,15 @@ export function InitialView({ onGraphicsFolder }) {
 							}}
 						>
 							Select local folder
+						</Button>{' '}
+						<Button
+							variant="secondary"
+							onClick={() => {
+								setRemoteError(null)
+								setShowRemoteModal(true)
+							}}
+						>
+							Select remote URL
 						</Button>
 					</p>
 					<p>
@@ -175,6 +276,47 @@ export function InitialView({ onGraphicsFolder }) {
 					</div>
 				</div>
 			</div>
+			<Modal show={showRemoteModal} onHide={() => setShowRemoteModal(false)}>
+				<Form onSubmit={handleRemoteUrlSelect}>
+					<Modal.Header closeButton>
+						<Modal.Title>Select remote URL</Modal.Title>
+					</Modal.Header>
+					<Modal.Body>
+						<p>
+							Enter a URL pointing to either a single Graphic manifest, or a list of Graphics (e.g. an OGraf API or a
+							GitHub repository).
+						</p>
+						<Form.Control
+							type="text"
+							placeholder={remotePlaceholderUrl}
+							value={remoteUrl}
+							onChange={(e) => setRemoteUrl(e.target.value)}
+							disabled={isLoadingRemote}
+							autoFocus
+						/>
+						{remoteError && (
+							<div className="alert alert-danger mt-3" role="alert">
+								{remoteError}
+								{showGithubSignIn && (
+									<div className="mt-2">
+										<Button size="sm" variant="dark" onClick={handleGithubSignIn} disabled={isLoadingRemote}>
+											Sign in with GitHub
+										</Button>
+									</div>
+								)}
+							</div>
+						)}
+					</Modal.Body>
+					<Modal.Footer>
+						<Button variant="secondary" onClick={() => setShowRemoteModal(false)} disabled={isLoadingRemote}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={isLoadingRemote}>
+							{isLoadingRemote ? formatDiscoveryProgress(remoteProgress) ?? 'Loading…' : 'Load'}
+						</Button>
+					</Modal.Footer>
+				</Form>
+			</Modal>
 		</div>
 	)
 }

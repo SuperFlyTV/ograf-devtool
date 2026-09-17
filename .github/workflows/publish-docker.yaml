@@ -66,4 +66,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             docker pull ghcr.io/superflytv/ograf-devtool:main
+            # set environment variables:
+            export OGRAF_DEVTOOL_APP_ID=${{ secrets.OGRAF_DEVTOOL_APP_ID }}
+            export OGRAF_DEVTOOL_APP_SECRET=${{ secrets.OGRAF_DEVTOOL_APP_SECRET }}
             docker compose up -d

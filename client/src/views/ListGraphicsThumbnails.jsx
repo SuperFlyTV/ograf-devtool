@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Table, Button } from 'react-bootstrap'
+import { Table, Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { Link, useNavigate } from 'react-router'
 import { graphicResourcePath, usePromise } from '../lib/lib.js'
 import { getDefaultSettings } from '../contexts/SettingsContext.js'
@@ -7,7 +7,7 @@ import { Renderer } from '../renderer/Renderer.js'
 import { fileHandler } from '../FileHandler.js'
 import { getDefaultDataFromSchema } from 'ograf-form'
 
-export function ListGraphicsThumbnails({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName }) {
+export function ListGraphicsThumbnails({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName, graphicsSource }) {
 	return (
 		<div className="container-fluid">
 			<div className="list-graphics card">
@@ -32,9 +32,21 @@ export function ListGraphicsThumbnails({ graphicsList, onRefresh, onCloseFolder,
 						<Link to={`/`}>
 							<Button>View List</Button>
 						</Link>{' '}
-						<Link to={`/generate-thumbnails`}>
-							<Button variant="success">🖼️ Generate Thumbnails</Button>
-						</Link>
+						{graphicsSource === 'remote' ? (
+							<OverlayTrigger
+								overlay={<Tooltip>Generating Thumbnails is only available in Local folder mode.</Tooltip>}
+							>
+								<span className="d-inline-block">
+									<Button variant="success" disabled style={{ pointerEvents: 'none' }}>
+										🖼️ Generate Thumbnails
+									</Button>
+								</span>
+							</OverlayTrigger>
+						) : (
+							<Link to={`/generate-thumbnails`}>
+								<Button variant="success">🖼️ Generate Thumbnails</Button>
+							</Link>
+						)}
 					</div>
 				</div>
 

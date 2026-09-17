@@ -1,14 +1,16 @@
 import * as React from 'react'
-import { Table, Button } from 'react-bootstrap'
+import { Table, Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { Link } from 'react-router'
 import { GraphicIssues } from '../components/GraphicIssues'
 
-export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName }) {
+export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName, graphicsSource }) {
 	return (
 		<div className="container-md">
 			<div className="list-graphics card">
 				<div>
-					<h2>Local folder "{graphicsFolderName}"</h2>
+					<h2>
+						{graphicsSource === 'remote' ? 'Remote URL' : 'Local folder'} "{graphicsFolderName}"
+					</h2>
 					<Button
 						onClick={() => {
 							onRefresh()
@@ -27,9 +29,21 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 						<Link to={`/thumbnails`}>
 							<Button>View All OGrafs</Button>
 						</Link>{' '}
-						<Link to={`/generate-thumbnails`}>
-							<Button variant="success">🖼️ Generate Thumbnails</Button>
-						</Link>
+						{graphicsSource === 'remote' ? (
+							<OverlayTrigger
+								overlay={<Tooltip>Generating Thumbnails is only available in Local folder mode.</Tooltip>}
+							>
+								<span className="d-inline-block">
+									<Button variant="success" disabled style={{ pointerEvents: 'none' }}>
+										🖼️ Generate Thumbnails
+									</Button>
+								</span>
+							</OverlayTrigger>
+						) : (
+							<Link to={`/generate-thumbnails`}>
+								<Button variant="success">🖼️ Generate Thumbnails</Button>
+							</Link>
+						)}
 					</div>
 				</div>
 
@@ -68,6 +82,11 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 													<div>{graphic.manifestParseError.toString()}</div>
 												</div>
 											) : null}
+											{graphic.warnings?.map((warning, wi) => (
+												<div className="alert alert-warning" key={wi}>
+													{warning}
+												</div>
+											))}
 											<GraphicIssues manifest={graphic.manifest} graphic={graphic} />
 										</td>
 										<td>

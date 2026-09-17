@@ -3,6 +3,15 @@ const path = require("path");
 const Cache = require("./cache");
 // const { Readable } = require("stream");
 
+// Renders a small page that reports the OAuth result back to the window that opened the popup, then closes itself.
+function githubOauthResultHtml({ token, error }) {
+  const payload = JSON.stringify({ type: "github-oauth-token", token, error });
+  return `<!DOCTYPE html><html><body><script>
+		if (window.opener) window.opener.postMessage(${payload}, window.location.origin)
+		window.close()
+	</script>${error ? `<p>${error}</p>` : "<p>Signed in, you can close this window.</p>"}</body></html>`;
+}
+
 function startServer(port, devMode) {
   const app = express();
   const cache = new Cache();
@@ -54,6 +63,65 @@ function startServer(port, devMode) {
   app.get("/clear-cache", (req, res) => {
     cache.clear();
     res.send("Cache cleared");
+  });
+
+  // "Sign in with GitHub" OAuth, used by the client to raise the GitHub API rate limit.
+  // Requires the GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET env vars to be set (of a GitHub OAuth App).
+  app.get("/api/github/oauth/config", (req, res) => {
+    res.json({ clientId: process.env.OGRAF_DEVTOOL_APP_ID || null });
+  });
+
+  app.get("/api/github/oauth/callback", async (req, res) => {
+    const { code } = req.query;
+    const clientId = process.env.OGRAF_DEVTOOL_APP_ID;
+    const clientSecret = process.env.OGRAF_DEVTOOL_APP_SECRET;
+
+    if (!clientId || !clientSecret) {
+      res.status(500).send(
+        githubOauthResultHtml({
+          error: "GitHub sign-in is not configured on this server.",
+        }),
+      );
+      return;
+    }
+    if (!code) {
+      res
+        .status(400)
+        .send(githubOauthResultHtml({ error: 'Missing "code" from GitHub.' }));
+      return;
+    }
+
+    try {
+      const tokenRes = await fetch(
+        "https://github.com/login/oauth/access_token",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+          }),
+        },
+      );
+      const tokenBody = await tokenRes.json();
+
+      if (tokenBody.error || !tokenBody.access_token) {
+        res.status(400).send(
+          githubOauthResultHtml({
+            error: tokenBody.error_description || "GitHub sign-in failed.",
+          }),
+        );
+        return;
+      }
+
+      res.send(githubOauthResultHtml({ token: tokenBody.access_token }));
+    } catch (err) {
+      res.status(500).send(githubOauthResultHtml({ error: `${err}` }));
+    }
   });
 
   if (!devMode) {

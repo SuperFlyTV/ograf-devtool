@@ -188,5 +188,17 @@ class ServiceWorkerHandler {
 
 		return serviceWorker
 	}
+	addAllowedOrigin(origin) {
+		this.broadcastToSW.postMessage({
+			type: 'add-allowed-origin',
+			origin,
+		})
+	}
+	setRemoteBaseUrl(baseUrl) {
+		this.broadcastToSW.postMessage({
+			type: 'set-remote-base-url',
+			baseUrl,
+		})
+	}
 }
 export const serviceWorkerHandler = new ServiceWorkerHandler()
