@@ -16,7 +16,7 @@ class GithubAuth {
 		const configRes = await fetch('/api/github/oauth/config')
 		if (!configRes.ok) throw new Error('Failed to load GitHub sign-in configuration from the server.')
 		const { clientId } = await configRes.json()
-		if (!clientId) throw new Error('GitHub sign-in is not configured on this server (missing GITHUB_CLIENT_ID).')
+		if (!clientId) throw new Error('GitHub sign-in is not configured on this server (missing OGRAF_DEVTOOL_APP_ID).')
 
 		const redirectUri = `${window.location.origin}/api/github/oauth/callback`
 		console.log('redirectUri', redirectUri)

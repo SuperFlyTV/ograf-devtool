@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Table, Button, ButtonGroup, Form, Accordion, Row, Col } from 'react-bootstrap'
+import { Table, Button, ButtonGroup, Form, Accordion, Row, Col, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { Link, useNavigate, useParams } from 'react-router'
 import { graphicResourcePath, usePromise } from '../lib/lib.js'
 import { Renderer } from '../renderer/Renderer.js'
@@ -14,6 +14,39 @@ import { GraphicCapabilities } from '../components/GraphicCapabilities.jsx'
 import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
 
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
+
+import backgroundFootball from '../../assets/backgrounds/football.jpg'
+import backgroundFireworks from '../../assets/backgrounds/fireworks.jpg'
+import backgroundInterview from '../../assets/backgrounds/interview.jpg'
+
+const BUNDLED_BACKGROUNDS = [
+	{ src: backgroundFootball, label: 'Football' },
+	{ src: backgroundFireworks, label: 'Fireworks' },
+	{ src: backgroundInterview, label: 'Interview' },
+]
+
+const BACKGROUND_STORAGE_KEY = 'graphicTester.background'
+function loadStoredBackground() {
+	try {
+		const raw = localStorage.getItem(BACKGROUND_STORAGE_KEY)
+		return raw ? JSON.parse(raw) : null
+	} catch (_err) {
+		return null
+	}
+}
+function storeBackground(background) {
+	try {
+		if (!background || background.type === 'none') {
+			localStorage.removeItem(BACKGROUND_STORAGE_KEY)
+			return
+		}
+		// Blobs/Files aren't JSON-serializable, so only persist enough to identify the background:
+		const { blob: _blob, ...storable } = background
+		localStorage.setItem(BACKGROUND_STORAGE_KEY, JSON.stringify(storable))
+	} catch (_err) {
+		// Ignore storage errors (e.g. quota exceeded / private browsing).
+	}
+}
 
 export function GraphicTester({ graphicsList }) {
 	const params = useParams()
@@ -402,20 +435,25 @@ function GraphicTesterInner({ graphic }) {
 										>
 											<div
 												ref={canvasRef}
-												className={'graphic-canvas' + (background ? '' : ' checkered-bg')}
+												className={
+													'graphic-canvas' + (background?.type && background.type !== 'none' ? '' : ' checkered-bg')
+												}
 												style={{
 													position: 'relative',
 													display: 'block',
 													border: 'none',
-													// backgroundImage: background ? URL.createObjectURL(background) : undefined,
 												}}
 											></div>
-											{background === 'white' ? (
+											{background?.type === 'color' && background.value === 'white' ? (
 												<div className="background-image" style={{ backgroundColor: 'white' }}></div>
-											) : background === 'black' ? (
+											) : background?.type === 'color' && background.value === 'black' ? (
 												<div className="background-image" style={{ backgroundColor: 'black' }}></div>
-											) : background ? (
-												<img className="background-image" src={URL.createObjectURL(background)}></img>
+											) : background?.type === 'webcam' ? (
+												<WebcamBackground deviceId={background.deviceId} />
+											) : background?.type === 'asset' ? (
+												<img className="background-image" src={background.src}></img>
+											) : background?.type === 'local-file' && background.blob ? (
+												<img className="background-image" src={URL.createObjectURL(background.blob)}></img>
 											) : null}
 										</div>
 									</div>
@@ -426,8 +464,10 @@ function GraphicTesterInner({ graphic }) {
 							<div className="card">
 								<div className="card-body">
 									<GraphicTesterOptions
+										background={background}
 										setBackground={(bg) => {
 											cacheBackground = bg
+											storeBackground(bg)
 											setBackground(bg)
 										}}
 									/>
@@ -441,7 +481,7 @@ function GraphicTesterInner({ graphic }) {
 	)
 }
 
-function GraphicTesterOptions({ setBackground }) {
+function GraphicTesterOptions({ background, setBackground }) {
 	const [changeBackground, setChangeBackground] = React.useState(false)
 	return (
 		<>
@@ -453,16 +493,23 @@ function GraphicTesterOptions({ setBackground }) {
 				🖼️ Change Background
 			</Button>
 
-			{changeBackground ? <GraphicTesterOptionsSetBackground setBackground={setBackground} /> : null}
+			{changeBackground ? (
+				<GraphicTesterOptionsSetBackground background={background} setBackground={setBackground} />
+			) : null}
 		</>
 	)
 }
 
-let cacheBackground = null // Just a simple way to retain the background when switching graphics..
+// Just a simple way to retain the background when switching graphics, restored from localStorage on first load:
+let cacheBackground = loadStoredBackground() ?? { type: 'none' }
 
-function GraphicTesterOptionsSetBackground({ setBackground }) {
+function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 	const [imageList, setImageList] = React.useState([])
 	const [reloading, setReloading] = React.useState(false)
+
+	const [webcams, setWebcams] = React.useState(null)
+	const [webcamError, setWebcamError] = React.useState(null)
+	const [isLoadingWebcams, setIsLoadingWebcams] = React.useState(false)
 
 	const reloadImages = React.useCallback(async () => {
 		setReloading(true)
@@ -502,11 +549,37 @@ function GraphicTesterOptionsSetBackground({ setBackground }) {
 			.catch(console.error)
 	}, [])
 
+	// If a previously selected local-file background was restored from storage (without its blob),
+	// resolve it once a matching file turns up in a freshly loaded image list:
+	React.useEffect(() => {
+		if (background?.type !== 'local-file' || background.blob) return
+		const match = imageList.find((image) => image.key === background.key)
+		if (match) setBackground({ ...background, blob: match.fileContent })
+	}, [imageList, background, setBackground])
+
+	const openWebcamPicker = React.useCallback(async () => {
+		setWebcamError(null)
+		setIsLoadingWebcams(true)
+		try {
+			// Request permission first, since device labels are otherwise blank:
+			const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+			stream.getTracks().forEach((track) => track.stop())
+
+			const devices = await navigator.mediaDevices.enumerateDevices()
+			setWebcams(devices.filter((device) => device.kind === 'videoinput'))
+		} catch (err) {
+			console.error(err)
+			setWebcamError(err.message || 'Failed to access any webcam')
+		} finally {
+			setIsLoadingWebcams(false)
+		}
+	}, [])
+
 	return (
 		<div>
 			{
 				<div className="image-list">
-					<div className="thumbnail" title="Default background" onClick={() => setBackground(null)}>
+					<div className="thumbnail" title="Default background" onClick={() => setBackground({ type: 'none' })}>
 						<div
 							className="checkered-bg"
 							style={{
@@ -515,7 +588,11 @@ function GraphicTesterOptionsSetBackground({ setBackground }) {
 							}}
 						></div>
 					</div>
-					<div className="thumbnail" title="White background" onClick={() => setBackground('white')}>
+					<div
+						className="thumbnail"
+						title="White background"
+						onClick={() => setBackground({ type: 'color', value: 'white' })}
+					>
 						<div
 							style={{
 								width: '10em',
@@ -524,7 +601,11 @@ function GraphicTesterOptionsSetBackground({ setBackground }) {
 							}}
 						></div>
 					</div>
-					<div className="thumbnail" title="Black background" onClick={() => setBackground('black')}>
+					<div
+						className="thumbnail"
+						title="Black background"
+						onClick={() => setBackground({ type: 'color', value: 'black' })}
+					>
 						<div
 							style={{
 								width: '10em',
@@ -534,13 +615,24 @@ function GraphicTesterOptionsSetBackground({ setBackground }) {
 						></div>
 					</div>
 
+					{BUNDLED_BACKGROUNDS.map((bg) => (
+						<div
+							className="thumbnail"
+							key={bg.src}
+							title={bg.label}
+							onClick={() => setBackground({ type: 'asset', src: bg.src, label: bg.label })}
+						>
+							<img src={bg.src}></img>
+						</div>
+					))}
+
 					{imageList.map((image) => {
 						return (
 							<div
 								className="thumbnail"
 								key={image.key}
 								title={image.key}
-								onClick={() => setBackground(image.fileContent)}
+								onClick={() => setBackground({ type: 'local-file', key: image.key, label: image.key, blob: image.fileContent })}
 							>
 								<img src={URL.createObjectURL(image.fileContent)}></img>
 							</div>
@@ -549,13 +641,102 @@ function GraphicTesterOptionsSetBackground({ setBackground }) {
 				</div>
 			}
 
-			{imageList.length === 0 ? <div>Click to look for images in your local folder:</div> : null}
+			{fileHandler.dirHandle ? (
+				<>
+					{imageList.length === 0 ? <div>Click to look for images in your local folder:</div> : null}
 
-			{reloading ? (
-				<Button disabled={true}>🖼️ Looking...</Button>
+					{reloading ? (
+						<Button disabled={true}>🖼️ Looking...</Button>
+					) : (
+						<Button onClick={reloadImages}>🖼️ Look for images</Button>
+					)}
+				</>
 			) : (
-				<Button onClick={reloadImages}>🖼️ Look for images</Button>
+				<OverlayTrigger overlay={<Tooltip>Only available in Local folder mode.</Tooltip>}>
+					<span className="d-inline-block">
+						<Button disabled style={{ pointerEvents: 'none' }}>
+							🖼️ Look for images
+						</Button>
+					</span>
+				</OverlayTrigger>
+			)}
+			{' '}
+			{isLoadingWebcams ? (
+				<Button disabled={true}>🎥 Looking...</Button>
+			) : (
+				<Button onClick={openWebcamPicker}>🎥 Use webcam</Button>
+			)}
+			{webcamError && (
+				<div className="alert alert-danger mt-2" role="alert">
+					{webcamError}
+				</div>
+			)}
+			{webcams && (
+				<div className="image-list mt-2">
+					{webcams.length === 0 ? (
+						<div>No webcams found.</div>
+					) : (
+						webcams.map((webcam, i) => (
+							<div
+								className="thumbnail"
+								key={webcam.deviceId || i}
+								title={webcam.label || `Webcam ${i + 1}`}
+								onClick={() => {
+									setBackground({ type: 'webcam', deviceId: webcam.deviceId, label: webcam.label })
+									setWebcams(null)
+								}}
+							>
+								<div
+									style={{
+										width: '10em',
+										height: '10em',
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'center',
+										background: '#222',
+										color: 'white',
+										textAlign: 'center',
+										padding: '0.5em',
+										overflow: 'hidden',
+									}}
+								>
+									🎥 {webcam.label || `Webcam ${i + 1}`}
+								</div>
+							</div>
+						))
+					)}
+				</div>
 			)}
 		</div>
 	)
 }
+
+// Renders a live feed from the selected webcam as the graphic's background.
+function WebcamBackground({ deviceId }) {
+	const videoRef = React.useRef(null)
+
+	React.useEffect(() => {
+		let stream = null
+		let cancelled = false
+
+		navigator.mediaDevices
+			.getUserMedia({ video: deviceId ? { deviceId: { exact: deviceId } } : true })
+			.then((s) => {
+				if (cancelled) {
+					s.getTracks().forEach((track) => track.stop())
+					return
+				}
+				stream = s
+				if (videoRef.current) videoRef.current.srcObject = s
+			})
+			.catch(console.error)
+
+		return () => {
+			cancelled = true
+			stream?.getTracks().forEach((track) => track.stop())
+		}
+	}, [deviceId])
+
+	return <video ref={videoRef} autoPlay muted playsInline className="background-image" />
+}
+

@@ -66,7 +66,7 @@ function startServer(port, devMode) {
   });
 
   // "Sign in with GitHub" OAuth, used by the client to raise the GitHub API rate limit.
-  // Requires the GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET env vars to be set (of a GitHub OAuth App).
+  // Requires the OGRAF_DEVTOOL_APP_ID / OGRAF_DEVTOOL_APP_SECRET env vars to be set (of a GitHub OAuth App).
   app.get("/api/github/oauth/config", (req, res) => {
     res.json({ clientId: process.env.OGRAF_DEVTOOL_APP_ID || null });
   });
