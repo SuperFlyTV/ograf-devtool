@@ -29,6 +29,18 @@ function githubRateLimitErrorMessage() {
 }
 
 /**
+ * Thrown when the GitHub API rate limit is hit mid-discovery.
+ * Carries whatever graphics were collected before the limit was reached.
+ */
+export class GithubRateLimitError extends Error {
+	constructor(message, partialGraphics) {
+		super(message)
+		this.name = 'GithubRateLimitError'
+		this.partialGraphics = partialGraphics ?? []
+	}
+}
+
+/**
  * Turns a discovery progress event (see RemoteHandler.discover()'s onProgress callback) into a human-readable string.
  */
 export function formatDiscoveryProgress(progress) {
@@ -263,7 +275,17 @@ class RemoteHandler {
 		const manifestFiles = []
 		const stats = { processed: 0, total: 1 }
 		onProgress?.({ phase: 'scanning-directories', ...stats })
-		await this.walkGithubContents(apiBase, path, ref, manifestFiles, stats, onProgress)
+
+		let rateLimitError = null
+		try {
+			await this.walkGithubContents(apiBase, path, ref, manifestFiles, stats, onProgress)
+		} catch (err) {
+			if (isGithubRateLimited()) {
+				rateLimitError = err
+			} else {
+				throw err
+			}
+		}
 
 		const graphics = []
 		for (let i = 0; i < manifestFiles.length; i++) {
@@ -283,6 +305,13 @@ class RemoteHandler {
 			}
 		}
 		onProgress?.({ phase: 'loading-manifests', processed: manifestFiles.length, total: manifestFiles.length })
+
+		// If the rate limit was hit mid-scan, throw a GithubRateLimitError that carries whatever
+		// graphics were already found, so the caller can offer "continue with partial results":
+		if (rateLimitError) {
+			throw new GithubRateLimitError(rateLimitError.message, graphics)
+		}
+
 		return graphics
 	}
 	async getGithubDefaultBranch(owner, repo) {

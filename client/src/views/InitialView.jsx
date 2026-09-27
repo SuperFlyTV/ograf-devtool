@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Button, Form, Modal } from 'react-bootstrap'
 import { fileHandler } from '../FileHandler'
-import { remoteHandler, isGithubRateLimited, formatDiscoveryProgress } from '../RemoteHandler'
+import { remoteHandler, isGithubRateLimited, formatDiscoveryProgress, GithubRateLimitError } from '../RemoteHandler'
 import { githubAuth } from '../GithubAuth'
 import superFlyLogoUrl from '../assets/SuperFly.tv_Logo_2020_v02.png'
 import ografLogoUrl from '../assets/ograf_logo_colour_draft.svg'
@@ -11,6 +11,7 @@ export function InitialView({
 	onGraphicsFolder,
 	error: externalError,
 	showGithubSignIn: externalShowGithubSignIn,
+	partialGraphics: externalPartialGraphics,
 	onGithubSignIn,
 }) {
 	const [isDragging, setIsDragging] = React.useState(false)
@@ -22,6 +23,7 @@ export function InitialView({
 	const [remoteError, setRemoteError] = React.useState(null)
 	const [isLoadingRemote, setIsLoadingRemote] = React.useState(false)
 	const [remoteProgress, setRemoteProgress] = React.useState(null)
+	const [remotePartialGraphics, setRemotePartialGraphics] = React.useState(null)
 	const [showGithubSignIn, setShowGithubSignIn] = React.useState(false)
 
 	const handleFolderSelect = React.useCallback(
@@ -45,6 +47,7 @@ export function InitialView({
 		async (url) => {
 			setRemoteError(null)
 			setShowGithubSignIn(false)
+			setRemotePartialGraphics(null)
 			setIsLoadingRemote(true)
 			setRemoteProgress(null)
 			try {
@@ -59,6 +62,9 @@ export function InitialView({
 				console.error(err)
 				setRemoteError(err.message)
 				setShowGithubSignIn(isGithubRateLimited())
+				if (err instanceof GithubRateLimitError && err.partialGraphics.length > 0) {
+					setRemotePartialGraphics({ graphics: err.partialGraphics, url })
+				}
 			} finally {
 				setIsLoadingRemote(false)
 			}
@@ -191,6 +197,24 @@ export function InitialView({
 					{(error || externalError) && (
 						<div className="alert alert-danger" role="alert">
 							{error || externalError}
+							{externalPartialGraphics && (
+								<div className="mt-2">
+									<Button
+										size="sm"
+										variant="warning"
+										onClick={() => {
+											onGraphicsFolder({
+												graphicsList: externalPartialGraphics.graphics,
+												graphicsFolderName: externalPartialGraphics.url,
+												source: 'remote',
+											})
+										}}
+									>
+										Continue with {externalPartialGraphics.graphics.length} graphic
+										{externalPartialGraphics.graphics.length === 1 ? '' : 's'} found so far
+									</Button>
+								</div>
+							)}
 							{externalShowGithubSignIn && (
 								<div className="mt-2">
 									<Button
@@ -297,6 +321,25 @@ export function InitialView({
 						{remoteError && (
 							<div className="alert alert-danger mt-3" role="alert">
 								{remoteError}
+								{remotePartialGraphics && (
+									<div className="mt-2">
+										<Button
+											size="sm"
+											variant="warning"
+											onClick={() => {
+												onGraphicsFolder({
+													graphicsList: remotePartialGraphics.graphics,
+													graphicsFolderName: remotePartialGraphics.url,
+													source: 'remote',
+												})
+												setShowRemoteModal(false)
+											}}
+										>
+											Continue with {remotePartialGraphics.graphics.length} graphic
+											{remotePartialGraphics.graphics.length === 1 ? '' : 's'} found so far
+										</Button>
+									</div>
+								)}
 								{showGithubSignIn && (
 									<div className="mt-2">
 										<Button size="sm" variant="dark" onClick={handleGithubSignIn} disabled={isLoadingRemote}>

@@ -71,7 +71,7 @@ export function ThumbnailGeneratorView({ graphicsList, onRefresh, onCloseFolder,
 
 	// ── Core: run generation for a list of graphics ───────────────────────────
 	const runGeneration = React.useCallback(
-		async (graphicsToProcess) => {
+		async (graphicsToProcess, force = false) => {
 			if (isRunning) return
 			setIsRunning(true)
 
@@ -83,7 +83,7 @@ export function ThumbnailGeneratorView({ graphicsList, onRefresh, onCloseFolder,
 					}
 
 					// Skip if all resolutions already have thumbnails (and not forcing)
-					if (!settings.forceRegenerate && graphic.manifest.thumbnails?.length) {
+					if (!force && !settings.forceRegenerate && graphic.manifest.thumbnails?.length) {
 						const existingFiles = new Set((graphic.manifest.thumbnails ?? []).map((t) => t.file))
 						const allExist = settings.resolutions.every((r) =>
 							existingFiles.has(`thumbnails/${r.width}x${r.height}.png`)
@@ -122,7 +122,7 @@ export function ThumbnailGeneratorView({ graphicsList, onRefresh, onCloseFolder,
 							...graphic.manifest,
 							thumbnails: [...keptThumbnails, ...newThumbnails],
 						}
-						await fileHandler.writeManifest(graphic, updatedManifest)
+						await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
 						// Update local manifest reference so subsequent skip-checks see new state
 						graphic.manifest = updatedManifest
 
@@ -153,7 +153,32 @@ export function ThumbnailGeneratorView({ graphicsList, onRefresh, onCloseFolder,
 		runGeneration(graphicsList ?? [])
 	}, [runGeneration, graphicsList])
 
-	const handleGenerateOne = React.useCallback((graphic) => runGeneration([graphic]), [runGeneration])
+	const handleGenerateOne = React.useCallback(
+		(graphic, force = false) => runGeneration([graphic], force),
+		[runGeneration]
+	)
+
+	const handleDeleteThumbnail = React.useCallback(
+		async (graphic, thumbnail) => {
+			if (isRunning) return
+			const filePath = graphic.folderPath + thumbnail.file
+			try {
+				await fileHandler.deleteFile(filePath)
+			} catch (err) {
+				console.error('Failed to delete thumbnail file:', err)
+				// Proceed to update the manifest even if the file was already gone
+			}
+			// Remove entry from manifest
+			const updatedManifest = {
+				...graphic.manifest,
+				thumbnails: (graphic.manifest.thumbnails ?? []).filter((t) => t.file !== thumbnail.file),
+			}
+			await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+			graphic.manifest = updatedManifest
+			bumpPreviewVersion(graphic.path)
+		},
+		[isRunning, bumpPreviewVersion]
+	)
 
 	const doneCount = Object.values(statuses).filter((s) => s.status === 'done' || s.status === 'skipped').length
 	const errorCount = Object.values(statuses).filter((s) => s.status === 'error').length
@@ -252,8 +277,10 @@ export function ThumbnailGeneratorView({ graphicsList, onRefresh, onCloseFolder,
 										graphic={graphic}
 										status={statuses[graphic.path] ?? { status: 'idle', message: '' }}
 										previewVersion={previewVersions[graphic.path] ?? 0}
-										onGenerate={() => handleGenerateOne(graphic)}
+										onGenerate={(force) => handleGenerateOne(graphic, force)}
+										onDeleteThumbnail={(thumbnail) => handleDeleteThumbnail(graphic, thumbnail)}
 										isRunning={isRunning}
+										resolutions={settings.resolutions}
 									/>
 								))}
 							</tbody>
@@ -267,9 +294,35 @@ export function ThumbnailGeneratorView({ graphicsList, onRefresh, onCloseFolder,
 	)
 }
 
+// ─── Generate button (adapts label based on whether all thumbnails already exist) ──────────────
+
+function GenerateButton({ graphic, resolutions, onGenerate, isRunning }) {
+	if (!graphic.manifest) {
+		return (
+			<Button size="sm" variant="outline-success" disabled title="Cannot generate: manifest has errors">
+				Generate
+			</Button>
+		)
+	}
+	const existingFiles = new Set((graphic.manifest.thumbnails ?? []).map((t) => t.file))
+	const allExist =
+		(resolutions ?? []).length > 0 &&
+		(resolutions ?? []).every((r) => existingFiles.has(`thumbnails/${r.width}x${r.height}.png`))
+	return (
+		<Button
+			size="sm"
+			variant={allExist ? 'outline-warning' : 'outline-success'}
+			onClick={() => onGenerate(allExist)}
+			disabled={isRunning}
+		>
+			{allExist ? 'Force Generate' : 'Generate'}
+		</Button>
+	)
+}
+
 // ─── Per-graphic table row ────────────────────────────────────────────────────
 
-function GraphicRow({ graphic, status, previewVersion, onGenerate, isRunning }) {
+function GraphicRow({ graphic, status, previewVersion, onGenerate, onDeleteThumbnail, isRunning, resolutions }) {
 	const existingThumbnails = graphic.manifest?.thumbnails ?? []
 
 	return (
@@ -309,6 +362,16 @@ function GraphicRow({ graphic, status, previewVersion, onGenerate, isRunning }) 
 									<small className="text-muted" style={{ fontSize: '0.7rem' }}>
 										{label}
 									</small>
+									<Button
+										size="sm"
+										variant="outline-danger"
+										onClick={() => onDeleteThumbnail(t)}
+										disabled={isRunning}
+										title={`Delete ${t.file}`}
+										style={{ marginTop: '0.25rem', fontSize: '0.7rem', padding: '0 0.35rem' }}
+									>
+										🗑
+									</Button>
 								</div>
 							)
 						})}
@@ -321,15 +384,7 @@ function GraphicRow({ graphic, status, previewVersion, onGenerate, isRunning }) 
 				<StatusBadge status={status} />
 			</td>
 			<td style={{ whiteSpace: 'nowrap' }}>
-				<Button
-					size="sm"
-					variant="outline-success"
-					onClick={onGenerate}
-					disabled={isRunning || !graphic.manifest}
-					title={!graphic.manifest ? 'Cannot generate: manifest has errors' : undefined}
-				>
-					Generate
-				</Button>
+				<GenerateButton graphic={graphic} resolutions={resolutions} onGenerate={onGenerate} isRunning={isRunning} />
 			</td>
 		</tr>
 	)

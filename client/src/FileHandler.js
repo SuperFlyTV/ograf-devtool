@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { sleep } from './lib/lib.js'
+import { detectJsonFormatting, formatJson } from './lib/jsonFormat.js'
 
 class FileHandler extends EventEmitter {
 	constructor() {
@@ -65,6 +66,7 @@ class FileHandler extends EventEmitter {
 					path: key,
 					folderPath: key.slice(0, -file.handle.name.length),
 					manifest: o.manifest,
+					manifestFormatting: o.formatting,
 					manifestParseError: o.error,
 				}
 				graphics.push(graphic)
@@ -132,6 +134,7 @@ class FileHandler extends EventEmitter {
 
 			return {
 				manifest: content,
+				formatting: detectJsonFormatting(contentStr),
 				error: error,
 			}
 		} catch (err) {
@@ -249,6 +252,40 @@ class FileHandler extends EventEmitter {
 	}
 
 	/**
+	 * Delete a file at the given path under the root directory handle.
+	 * Silently succeeds if the file does not exist.
+	 * @param {string} path - Path relative to root, e.g. "/my-graphic/thumbnails/1280x720.png"
+	 */
+	async deleteFile(path) {
+		if (!this.dirHandle) throw new Error('No directory handle open')
+
+		// Strip leading slash and split into segments
+		const segments = path.replace(/^\//, '').split('/')
+		const fileName = segments.pop()
+
+		// Traverse directories (do not create)
+		let currentDir = this.dirHandle
+		for (const segment of segments) {
+			try {
+				currentDir = await currentDir.getDirectoryHandle(segment, { create: false })
+			} catch (_) {
+				// Directory doesn't exist — file can't exist either
+				return
+			}
+		}
+
+		try {
+			await currentDir.removeEntry(fileName)
+		} catch (err) {
+			if (err.name !== 'NotFoundError') throw err
+		}
+
+		// Invalidate any cached entry
+		const fullPath = '/' + [...segments, fileName].join('/')
+		delete this.files[fullPath]
+	}
+
+	/**
 	 * Write a Blob to a path under the root directory handle.
 	 * Creates intermediate directories as needed.
 	 * @param {string} path - Path relative to root, e.g. "/my-graphic/thumbnails/1280x720.png"
@@ -280,13 +317,42 @@ class FileHandler extends EventEmitter {
 
 	/**
 	 * Write a manifest object back to its file on disk.
+	 * Matches the original formatting of the manifest (tabs, number of spaces, newlines).
 	 * @param {object} graphic - Graphic entry from listGraphics()
 	 * @param {object} manifest - Updated manifest object
+	 * @param {object} [formatting] - Optional explicit formatting options
 	 */
-	async writeManifest(graphic, manifest) {
-		const json = JSON.stringify(manifest, null, '\t')
+	async writeManifest(graphic, manifest, formatting) {
+		let detectedFormatting = formatting
+		if (!detectedFormatting && graphic?.path) {
+			try {
+				let f = this.files[graphic.path]
+				if (!f) {
+					const dirPath = graphic.path.replace(/\/[^/]+$/, '')
+					const dir = this.dirs[dirPath]
+					if (dir) {
+						await this.discoverFilesInDirectory(dirPath, dir.dirHandle)
+					}
+					f = this.files[graphic.path]
+				}
+				if (f?.handle) {
+					const file = await f.handle.getFile()
+					const text = await file.text()
+					detectedFormatting = detectJsonFormatting(text)
+				}
+			} catch (_) {}
+		}
+		if (!detectedFormatting) {
+			detectedFormatting = graphic?.manifestFormatting
+		}
+
+		const json = formatJson(manifest, detectedFormatting)
 		const blob = new Blob([json], { type: 'application/json' })
 		await this.writeFile(graphic.path, blob)
+
+		if (graphic && detectedFormatting) {
+			graphic.manifestFormatting = detectedFormatting
+		}
 	}
 }
 

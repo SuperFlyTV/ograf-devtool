@@ -61,3 +61,5 @@ export function usePromise(fcn, deps) {
 
 	return result
 }
+
+export { detectJsonFormatting, formatJson } from './jsonFormat.js'

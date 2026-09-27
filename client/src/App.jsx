@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router'
 import { fileHandler } from './FileHandler'
-import { remoteHandler, isGithubRateLimited, formatDiscoveryProgress } from './RemoteHandler'
+import { remoteHandler, isGithubRateLimited, formatDiscoveryProgress, GithubRateLimitError } from './RemoteHandler'
 import { serviceWorkerHandler } from './ServiceWorkerHandler.js'
 import { setResourceSource } from './lib/lib.js'
 import { InitialView, TroubleShoot } from './views/InitialView'
@@ -59,6 +59,7 @@ export function App() {
 	const [graphicsSource, setGraphicsSource] = React.useState('local') // 'local' | 'remote'
 	const [restoreError, setRestoreError] = React.useState(null)
 	const [restoreShowGithubSignIn, setRestoreShowGithubSignIn] = React.useState(false)
+	const [restorePartialGraphics, setRestorePartialGraphics] = React.useState(null)
 	const [restoreProgress, setRestoreProgress] = React.useState(null)
 
 	// Let graphicResourcePath() know whether to resolve resources against the local folder or the remote base url:
@@ -70,6 +71,7 @@ export function App() {
 		setGraphicsList(false)
 		setRestoreError(null)
 		setRestoreShowGithubSignIn(false)
+		setRestorePartialGraphics(null)
 		setRestoreProgress(null)
 		return remoteHandler
 			.init(remoteUrl, setRestoreProgress)
@@ -84,6 +86,9 @@ export function App() {
 				console.error(err)
 				setRestoreError(err.message)
 				setRestoreShowGithubSignIn(isGithubRateLimited())
+				if (err instanceof GithubRateLimitError && err.partialGraphics.length > 0) {
+					setRestorePartialGraphics({ graphics: err.partialGraphics, url: remoteUrl })
+				}
 				setGraphicsList(null)
 			})
 	}, [])
@@ -173,6 +178,7 @@ export function App() {
 					<InitialView
 						error={restoreError}
 						showGithubSignIn={restoreShowGithubSignIn}
+						partialGraphics={restorePartialGraphics}
 						onGithubSignIn={onGithubSignIn}
 						onGraphicsFolder={({ graphicsList, graphicsFolderName, source }) => {
 							setResourceSource(source ?? 'local')
