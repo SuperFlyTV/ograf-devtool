@@ -164,59 +164,33 @@ body {
 	min-height: 100%;
 	z-index: -1;
 }
-.auto-reload-bar {
-	width: 100%;
-	position: relative;
-	// height: 2em;
-	.auto-reload-bar_bar {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		left: 0;
-		background-color: rgba(0, 0, 0, 0.1);
-		z-index: 1;
-	}
-	.auto-reload-bar_message {
-		// position: absolute;
-		// top: 0;
-		// left: 0.5em;
+.graphic-timeline-container {
+	user-select: none;
 
-		height: 1.5em;
-
-		z-index: 3;
-		color: #000;
-		text-shadow: 0 0 5px #fff;
-	}
-	.auto-reload-bar_actions {
-		display: block;
-		position: relative;
-		padding: 0 5px;
-		height: 2em;
-	}
-	.auto-reload-bar_action {
-		z-index: 5;
-		box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-
-		border-radius: 5px;
-		border: 1px solid #090;
-		border-left: 3px solid #090;
-
-		background-color: rgba(0, 255, 0, 0.8);
-		padding-left: 0.25em;
-	}
-	.auto-reload-bar_action-timed {
-		position: absolute;
-		top: 0;
-		// left is set by JS
-	}
-	.auto-reload-bar_action-untimed {
-		display: inline-block;
+	.timeline-event-marker {
+		transition: box-shadow 0.15s ease, transform 0.05s ease;
+		&:hover {
+			box-shadow: 0 0 8px rgba(0, 0, 0, 0.4) !important;
+		}
+		&.dragging {
+			opacity: 0.9;
+			box-shadow: 0 0 12px rgba(255, 193, 7, 0.8) !important;
+		}
 	}
 }
+
+.select-none {
+	user-select: none;
+}
+
+.fs-7 {
+	font-size: 0.75rem;
+}
+
 .graphics-actions {
 	display: flex;
-	// justify-content: space-between;
 	align-items: flex-start;
+	gap: 0.5rem;
 
 	.graphics-action {
 		margin: 0.5em;

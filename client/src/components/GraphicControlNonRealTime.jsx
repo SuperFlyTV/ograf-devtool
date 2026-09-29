@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, Accordion, ButtonGroup, InputGroup, Form, ButtonToolbar } from 'react-bootstrap'
+import { Button, Accordion, ButtonGroup, InputGroup, Form, ButtonToolbar, Badge } from 'react-bootstrap'
 import { issueTracker } from '../renderer/IssueTracker.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
@@ -10,7 +10,8 @@ export function GraphicControlNonRealTime({
 	rendererRef,
 	manifest,
 	setPlayTime,
-	schedule,
+	playTimeRef,
+	schedule = [],
 	setActionsSchedule,
 	sendSetActionsSchedule,
 	sentSetPlayTime,
@@ -30,37 +31,32 @@ export function GraphicControlNonRealTime({
 	const [deltaStep, setDeltaStep] = React.useState(1)
 
 	const supportsNonRealTime = manifest.supportsNonRealTime
+	const duration = settings.duration || 5000
 
-	const [playTimeLocal, setPlayTimeLocal] = React.useState(0)
-	const [playTimeLocalStr, setPlayTimeLocalStr] = React.useState(playTimeLocal)
+	const currentPlayTime = playTimeRef?.current || 0
 
-	const duration = settings.duration
-
-	if (playTimeLocal === 0) {
+	if (currentPlayTime === 0 && rendererRef.current) {
 		rendererRef.current.setData(data)
 	}
 
 	const updatePlayTime = React.useCallback(
 		(time) => {
-			time = parseInt(time)
+			time = parseInt(time, 10)
 			if (Number.isNaN(time)) time = 0
 
 			const quantizedTime = settings.quantizeFps > 0 ? time - (time % (1000 / settings.quantizeFps)) : time
 
-			if (quantizedTime !== playTimeLocal) {
+			if (setPlayTime) {
 				setPlayTime(quantizedTime)
-				setPlayTimeLocal(quantizedTime)
-				setPlayTimeLocalStr(quantizedTime)
 			}
 		},
-		[settings]
+		[settings, setPlayTime]
 	)
+
 	const addToSchedule = React.useCallback(
 		(timestamp, type, params) => {
 			if (!params.skipAnimation) delete params.skipAnimation
-			console.log('addToSchedule', timestamp, type, params)
-			const newSchedule = [
-				...schedule,
+			let newEvents = [
 				{
 					timestamp,
 					action: JSON.parse(
@@ -71,13 +67,24 @@ export function GraphicControlNonRealTime({
 					),
 				},
 			]
+
+			// If adding a playAction to an empty timeline schedule, also add an updateAction at time 0 with current data
+			if (type === 'playAction' && schedule.length === 0) {
+				const updateEvent = {
+					timestamp: 0,
+					action: {
+						type: 'updateAction',
+						params: { data: JSON.parse(JSON.stringify(data)) },
+					},
+				}
+				newEvents = [updateEvent, ...newEvents]
+			}
+
+			const newSchedule = [...schedule, ...newEvents].sort((a, b) => a.timestamp - b.timestamp)
 			setActionsSchedule(newSchedule)
 		},
-		[schedule]
+		[schedule, setActionsSchedule, data]
 	)
-	const clearSchedule = React.useCallback(() => {
-		setActionsSchedule([])
-	}, [schedule])
 
 	return (
 		<div>
@@ -89,12 +96,13 @@ export function GraphicControlNonRealTime({
 				}}
 			>
 				<Accordion.Item eventKey="0">
-					<Accordion.Header>Graphic Control</Accordion.Header>
+					<Accordion.Header>Graphic Control (Non-Realtime)</Accordion.Header>
 					<Accordion.Body>
 						{supportsNonRealTime ? (
 							<>
-								<div>
+								<div className="mb-3 d-flex gap-2">
 									<Button
+										variant="primary"
 										onClick={() => {
 											issueTracker.clear()
 											rendererRef.current
@@ -109,6 +117,7 @@ export function GraphicControlNonRealTime({
 										Load Graphic
 									</Button>
 									<Button
+										variant="outline-danger"
 										onClick={() => {
 											rendererRef.current.clearGraphic().catch(issueTracker.addError)
 										}}
@@ -116,121 +125,103 @@ export function GraphicControlNonRealTime({
 										Clear Graphic
 									</Button>
 								</div>
-								<div className="graphics-manifest-schema">
-									<div>
-										{manifest.schema && <OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />}
-									</div>
+
+								<div className="graphics-manifest-schema mb-3 border p-2 rounded bg-light">
+									<h6>Data Schema</h6>
+									{manifest.schema && <OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />}
 								</div>
-								<div>
+
+								<div className="mb-3">
 									<Form.Check
 										type="switch"
-										label="skipAnimation"
+										id="skip-animation-switch"
+										label="skipAnimation flag on actions"
 										onChange={(e) => setSkipAnimation(e.target.checked)}
 										checked={skipAnimation}
 									/>
 								</div>
-								<div>
-									<ButtonGroup>
-										<Button
-											onClick={() => {
-												addToSchedule(playTimeLocal, 'updateAction', {
-													data,
-												})
-											}}
-										>
-											Update
-										</Button>
-										<Button
-											onClick={() => {
-												addToSchedule(playTimeLocal, 'playAction', { skipAnimation })
-											}}
-										>
-											Play
-										</Button>
-										<Button
-											onClick={() => {
-												addToSchedule(playTimeLocal, 'stopAction', { skipAnimation })
-											}}
-										>
-											Stop
-										</Button>
-									</ButtonGroup>
-								</div>
-								<div>
-									<ButtonToolbar aria-label="Toolbar with button groups">
-										<InputGroup className="me-2">
+
+								<div className="mb-3 border p-2 rounded">
+									<h6>Add Event at Current Playhead</h6>
+									<div className="d-flex flex-wrap gap-2 mb-2">
+										<ButtonGroup size="sm">
+											<Button
+												variant="success"
+												onClick={() => {
+													addToSchedule(currentPlayTime, 'updateAction', { data })
+												}}
+											>
+												➕ Add Update
+											</Button>
+											<Button
+												variant="primary"
+												onClick={() => {
+													addToSchedule(currentPlayTime, 'playAction', { skipAnimation })
+												}}
+											>
+												➕ Add Play
+											</Button>
+											<Button
+												variant="danger"
+												onClick={() => {
+													addToSchedule(currentPlayTime, 'stopAction', { skipAnimation })
+												}}
+											>
+												➕ Add Stop
+											</Button>
+										</ButtonGroup>
+									</div>
+
+									<ButtonToolbar className="mb-2">
+										<InputGroup size="sm" className="me-2 mb-1">
 											<Form.Control
 												type="number"
 												placeholder="Step"
 												value={gotoStep}
 												onChange={(e) => setGotoStep(parseInt(e.target.value, 10) || 0)}
-												style={{
-													width: '4em',
-												}}
+												style={{ width: '4em' }}
 											/>
 											<Button
+												variant="outline-primary"
 												onClick={() => {
-													addToSchedule(playTimeLocal, 'playAction', { goto: gotoStep, skipAnimation })
+													addToSchedule(currentPlayTime, 'playAction', { goto: gotoStep, skipAnimation })
 												}}
 											>
 												Goto Step
 											</Button>
 										</InputGroup>
 
-										<InputGroup className="me-2">
+										<InputGroup size="sm" className="me-2 mb-1">
 											<Form.Control
 												type="number"
 												placeholder="Step"
 												value={deltaStep}
 												onChange={(e) => setDeltaStep(parseInt(e.target.value, 10) || 0)}
-												style={{
-													width: '4em',
-												}}
+												style={{ width: '4em' }}
 											/>
 											<Button
+												variant="outline-primary"
 												onClick={() => {
-													addToSchedule(playTimeLocal, 'playAction', { delta: deltaStep, skipAnimation })
+													addToSchedule(currentPlayTime, 'playAction', { delta: deltaStep, skipAnimation })
 												}}
 											>
 												Delta Step
 											</Button>
 										</InputGroup>
 									</ButtonToolbar>
-								</div>
-								<div>
-									<GraphicsActions
-										rendererRef={rendererRef}
-										manifest={manifest}
-										onAction={(actionId, payload, _event) => {
-											addToSchedule(playTimeLocal, 'customAction', {
-												id: actionId,
-												payload: payload,
-											})
-										}}
-									/>
-								</div>
-								<div>
-									<Form.Group className="mb-3">
-										<Form.Label>Point in Time</Form.Label>
-										<Form.Range
-											min={0}
-											max={duration}
-											value={playTimeLocal}
-											onChange={(e) => {
-												updatePlayTime(e.target.value)
+
+									<div>
+										<GraphicsActions
+											rendererRef={rendererRef}
+											manifest={manifest}
+											onAction={(actionId, payload) => {
+												addToSchedule(currentPlayTime, 'customAction', {
+													id: actionId,
+													payload: payload,
+												})
 											}}
 										/>
-										<Form.Control
-											type="number"
-											value={playTimeLocalStr}
-											onChange={(e) => {
-												setPlayTimeLocalStr(e.target.value)
-											}}
-											onBlur={(e) => {
-												updatePlayTime(e.target.value)
-											}}
-										/>
-									</Form.Group>
+									</div>
 								</div>
 							</>
 						) : (
@@ -242,16 +233,17 @@ export function GraphicControlNonRealTime({
 		</div>
 	)
 }
+
 function GraphicsActions({ manifest, rendererRef, onAction }) {
 	return (
 		<>
-			<div className="graphics-actions">
+			<div className="graphics-actions flex-wrap">
 				{Object.values(manifest.customActions || {}).map((action) => {
 					return <GraphicAction key={action.id} rendererRef={rendererRef} action={action} onAction={onAction} />
 				})}
 			</div>
-			<div>
-				<i>Click on an action to add it to the schedule of invoked actions.</i>
+			<div className="text-muted fs-7 mt-1">
+				<i>Click an action button above to add it to the schedule at the playhead time.</i>
 			</div>
 		</>
 	)

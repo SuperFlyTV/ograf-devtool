@@ -12,6 +12,7 @@ import { GraphicControlRealTime } from '../components/GraphicControlRealTime.jsx
 import { GraphicControlNonRealTime } from '../components/GraphicControlNonRealTime.jsx'
 import { GraphicCapabilities } from '../components/GraphicCapabilities.jsx'
 import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
+import { VideoExportModal } from '../components/VideoExportModal.jsx'
 
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
 
@@ -270,29 +271,71 @@ function GraphicTesterInner({ graphic }) {
 	}, [settings])
 
 	const playTimeRef = React.useRef(0)
+	const [, setPlayTimeState] = React.useState(0)
 	const setPlayTime = React.useCallback((time) => {
 		rendererRef.current.gotoTime(time).catch(issueTracker.addError)
 		playTimeRef.current = time
+		setPlayTimeState(time)
 	}, [])
 	const sentSetPlayTime = React.useCallback(async () => {
 		await rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.addError)
 	}, [])
 
+	const ografId = graphicManifest?.id || graphic?.id || graphic?.path
+	const storageKey = ografId ? `ograf.timeline.${ografId}` : null
+
 	const scheduleRef = React.useRef([])
 	const [schedule, setSchedule] = React.useState([])
+
+	// Load saved timeline schedule from localStorage on mount or when graphic/manifest changes
+	React.useEffect(() => {
+		if (!storageKey) return
+		try {
+			const saved = localStorage.getItem(storageKey)
+			if (saved) {
+				const parsed = JSON.parse(saved)
+				if (Array.isArray(parsed) && parsed.length > 0) {
+					scheduleRef.current = parsed
+					setSchedule(parsed)
+					if (!settings.realtime && rendererRef.current) {
+						rendererRef.current.setActionsSchedule(parsed).catch(issueTracker.addError)
+					}
+				}
+			}
+		} catch (err) {
+			console.error('Error loading timeline schedule from localStorage:', err)
+		}
+	}, [storageKey])
+
 	const setActionsSchedule = React.useCallback(
-		(schedule) => {
-			scheduleRef.current = JSON.parse(JSON.stringify(schedule))
-			setSchedule(scheduleRef.current)
+		(newSchedule) => {
+			const cloned = JSON.parse(JSON.stringify(newSchedule))
+			scheduleRef.current = cloned
+			setSchedule(cloned)
+
+			const currentOgrafId = graphicManifest?.id || graphic?.id || graphic?.path
+			if (currentOgrafId) {
+				const key = `ograf.timeline.${currentOgrafId}`
+				try {
+					if (cloned.length > 0) {
+						localStorage.setItem(key, JSON.stringify(cloned))
+					} else {
+						localStorage.removeItem(key)
+					}
+				} catch (err) {
+					console.error('Error saving timeline schedule to localStorage:', err)
+				}
+			}
+
 			if (settings.realtime) {
 				if (!settings.autoReloadEnable) {
 					triggerReloadGraphic()
 				}
 			} else {
-				rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.addError)
+				rendererRef.current.setActionsSchedule(cloned).catch(issueTracker.addError)
 			}
 		},
-		[settings]
+		[settings, graphic, graphicManifest]
 	)
 	const sendSetActionsSchedule = React.useCallback(async () => {
 		if (settings.realtime) {
@@ -309,6 +352,7 @@ function GraphicTesterInner({ graphic }) {
 	// console.log('isReloading', isReloading)
 
 	const [background, setBackground] = React.useState(cacheBackground)
+	const [showExportModal, setShowExportModal] = React.useState(false)
 
 	return (
 		<SettingsContext.Provider value={{ settings, onChange: onSettingsChange }}>
@@ -345,11 +389,12 @@ function GraphicTesterInner({ graphic }) {
 												sentSetPlayTime={sentSetPlayTime}
 												manifest={graphicManifest}
 												setPlayTime={setPlayTime}
+												playTimeRef={playTimeRef}
 											/>
 										)}
 										<div>
 											{schedule.length ? (
-												<Button onClick={() => setActionsSchedule([])}>Reset saved actions</Button>
+												<Button onClick={() => setActionsSchedule([])}>Clear scheduled actions</Button>
 											) : null}
 										</div>
 									</div>
@@ -397,11 +442,11 @@ function GraphicTesterInner({ graphic }) {
 								<GraphicTimeline
 									rendererRef={rendererRef}
 									schedule={schedule}
+									setActionsSchedule={setActionsSchedule}
 									playTimeRef={playTimeRef}
-									onRemoveScheduledAction={(index) => {
-										schedule.splice(index, 1)
-										setActionsSchedule([...schedule])
-									}}
+									setPlayTime={setPlayTime}
+									manifest={graphicManifest}
+									onOpenExportVideo={() => setShowExportModal(true)}
 								/>
 							</div>
 							<div>
@@ -477,6 +522,13 @@ function GraphicTesterInner({ graphic }) {
 					</div>
 				</div>
 			</div>
+			<VideoExportModal
+				show={showExportModal}
+				onHide={() => setShowExportModal(false)}
+				rendererRef={rendererRef}
+				previewContainerRef={previewContainerRef}
+				graphic={graphic}
+			/>
 		</SettingsContext.Provider>
 	)
 }

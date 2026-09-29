@@ -60,7 +60,8 @@ class FileHandler extends EventEmitter {
 		// List all graphics in the directory:
 		const graphics = []
 		for (const [key, file] of Object.entries(this.files)) {
-			const o = await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())
+			const fileObj = await file.handle.getFile()
+			const o = await this.isManifestFile(file.handle.name, async () => fileObj.text())
 			if (o) {
 				const graphic = {
 					path: key,
@@ -68,8 +69,24 @@ class FileHandler extends EventEmitter {
 					manifest: o.manifest,
 					manifestFormatting: o.formatting,
 					manifestParseError: o.error,
+					lastModified: fileObj.lastModified,
 				}
 				graphics.push(graphic)
+			}
+		}
+
+		// Calculate latest modified date (manifest and code/assets) for each graphic
+		const sortedGraphicsByPath = [...graphics].sort((a, b) => b.folderPath.length - a.folderPath.length)
+
+		for (const [key, file] of Object.entries(this.files)) {
+			const graphic = sortedGraphicsByPath.find((g) => key.startsWith(g.folderPath))
+			if (graphic) {
+				try {
+					const fObj = await file.handle.getFile()
+					if (!graphic.lastModified || fObj.lastModified > graphic.lastModified) {
+						graphic.lastModified = fObj.lastModified
+					}
+				} catch (_) {}
 			}
 		}
 
