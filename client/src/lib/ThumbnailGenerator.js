@@ -1,4 +1,4 @@
-import domtoimage from 'dom-to-image-more'
+import { captureFrameToCanvas } from './frameCapture.js'
 import { getDefaultDataFromSchema } from 'ograf-form'
 import { Renderer } from '../renderer/Renderer.js'
 
@@ -72,12 +72,12 @@ export async function generateThumbnailsForGraphic({ graphic, thumbnailSettings,
 		onProgress(`Capturing at ${maxRes.width}×${maxRes.height}…`)
 
 		/** @type {HTMLCanvasElement} */
-		const nativeCanvas = await domtoimage.toCanvas(container, {
-			width: maxRes.width,
-			height: maxRes.height,
-			// null = transparent background; '#000000' for opaque
-			bgcolor: transparent ? null : '#000000',
-		})
+		const nativeCanvas = await captureFrameToCanvas(
+			container,
+			maxRes.width,
+			maxRes.height,
+			transparent ? null : '#000000'
+		)
 
 		// ── Export each requested resolution ──────────────────────────────────
 		const results = []

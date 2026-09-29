@@ -93,8 +93,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 					bVal = b.lastModified || 0
 					break
 				case 'capabilities': {
-					const getRank = (g) =>
-						(g.manifest?.supportsRealTime ? 2 : 0) + (g.manifest?.supportsNonRealTime ? 1 : 0)
+					const getRank = (g) => (g.manifest?.supportsRealTime ? 2 : 0) + (g.manifest?.supportsNonRealTime ? 1 : 0)
 					aVal = getRank(a)
 					bVal = getRank(b)
 					break
@@ -213,35 +212,40 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 									<tr key={graphic.path}>
 										<td>{graphic.path}</td>
 										<td>
-											{bestThumbnail ? (
-												(() => {
-													const filePath = (graphic.folderPath || '') + bestThumbnail.file
-													const src = graphicResourcePath(filePath)
-													const label =
-														bestThumbnail.width && bestThumbnail.height
-															? `${bestThumbnail.width}×${bestThumbnail.height}`
-															: bestThumbnail.file
-													return (
-														<a href={src} target="_blank" rel="noreferrer" title={`Open ${bestThumbnail.file} in new tab`}>
-															<img
-																src={src}
-																alt={label}
-																style={{
-																	maxHeight: '48px',
-																	maxWidth: '90px',
-																	width: 'auto',
-																	height: 'auto',
-																	objectFit: 'contain',
-																	border: '1px solid #ccc',
-																	borderRadius: '3px',
-																	background: 'repeating-conic-gradient(#888 0% 25%, #555 0% 50%) 0 0 / 12px 12px',
-																	display: 'block',
-																}}
-															/>
-														</a>
-													)
-												})()
-											) : null}
+											{bestThumbnail
+												? (() => {
+														const filePath = (graphic.folderPath || '') + bestThumbnail.file
+														const src = graphicResourcePath(filePath)
+														const label =
+															bestThumbnail.width && bestThumbnail.height
+																? `${bestThumbnail.width}×${bestThumbnail.height}`
+																: bestThumbnail.file
+														return (
+															<a
+																href={src}
+																target="_blank"
+																rel="noreferrer"
+																title={`Open ${bestThumbnail.file} in new tab`}
+															>
+																<img
+																	src={src}
+																	alt={label}
+																	style={{
+																		maxHeight: '48px',
+																		maxWidth: '90px',
+																		width: 'auto',
+																		height: 'auto',
+																		objectFit: 'contain',
+																		border: '1px solid #ccc',
+																		borderRadius: '3px',
+																		background: 'repeating-conic-gradient(#888 0% 25%, #555 0% 50%) 0 0 / 12px 12px',
+																		display: 'block',
+																	}}
+																/>
+															</a>
+														)
+												  })()
+												: null}
 										</td>
 										<td>
 											{tooltipText ? (
@@ -256,24 +260,16 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 										</td>
 										<td>
 											<div className="d-flex flex-wrap gap-1 align-items-center">
-												{graphic.manifest?.supportsRealTime && (
-													<Badge bg="success" title="Supports Real-Time rendering" style={{ fontWeight: 'normal' }}>
-														🏃 Real-time
-													</Badge>
-												)}
+												{graphic.manifest?.supportsRealTime && <span title="Supports Real-Time rendering">🏃</span>}
 												{graphic.manifest?.supportsNonRealTime && (
-													<Badge bg="info" text="dark" title="Supports Non-Real-Time rendering" style={{ fontWeight: 'normal' }}>
-														🧍 Non-Real-time
-													</Badge>
+													<span title="Supports Non-Real-Time rendering">🎞</span>
 												)}
 												{!graphic.manifest?.supportsRealTime && !graphic.manifest?.supportsNonRealTime && (
 													<span className="text-muted small">—</span>
 												)}
 											</div>
 										</td>
-										<td style={{ whiteSpace: 'nowrap' }}>
-											{formatLastModified(graphic.lastModified)}
-										</td>
+										<td style={{ whiteSpace: 'nowrap' }}>{formatLastModified(graphic.lastModified)}</td>
 										<td>
 											{graphic.manifestParseError ? (
 												<div className="alert alert-danger">
@@ -308,4 +304,3 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 		</div>
 	)
 }
-

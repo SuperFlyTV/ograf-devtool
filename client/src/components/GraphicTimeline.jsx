@@ -209,6 +209,97 @@ export function GraphicTimeline({
 		if (setPlayTime) setPlayTime(nextTime)
 	}
 
+	// NLE-standard keyboard shortcuts
+	// Ignored when focus is inside an input/textarea/select to avoid interfering with typing
+	React.useEffect(() => {
+		const handleKeyDown = (e) => {
+			const tag = e.target?.tagName?.toLowerCase()
+			if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return
+
+			switch (e.key) {
+				case ' ':
+					// Space: Play / Pause
+					e.preventDefault()
+					setIsPlaying((prev) => {
+						if (!prev && (playTimeRef?.current || 0) >= duration) {
+							if (setPlayTime) setPlayTime(0)
+						}
+						return !prev
+					})
+					break
+
+				case 'ArrowLeft':
+					// ←: step 1 frame back | Shift+←: jump 1 second back
+					e.preventDefault()
+					setIsPlaying(false)
+					if (e.shiftKey) {
+						if (setPlayTime) setPlayTime(Math.max(0, Math.round((playTimeRef?.current || 0) - 1000)))
+					} else {
+						if (setPlayTime) setPlayTime(Math.max(0, Math.round((playTimeRef?.current || 0) - frameStepMs)))
+					}
+					break
+
+				case 'ArrowRight':
+					// →: step 1 frame forward | Shift+→: jump 1 second forward
+					e.preventDefault()
+					setIsPlaying(false)
+					if (e.shiftKey) {
+						if (setPlayTime) setPlayTime(Math.min(duration, Math.round((playTimeRef?.current || 0) + 1000)))
+					} else {
+						if (setPlayTime) setPlayTime(Math.min(duration, Math.round((playTimeRef?.current || 0) + frameStepMs)))
+					}
+					break
+
+				case 'Home':
+					// Home: Go to start
+					e.preventDefault()
+					setIsPlaying(false)
+					if (setPlayTime) setPlayTime(0)
+					break
+
+				case 'End':
+					// End: Go to end
+					e.preventDefault()
+					setIsPlaying(false)
+					if (setPlayTime) setPlayTime(duration)
+					break
+
+				case 'j':
+				case 'J':
+					// J (Avid/Premiere): rewind to start
+					e.preventDefault()
+					setIsPlaying(false)
+					if (setPlayTime) setPlayTime(0)
+					break
+
+				case 'k':
+				case 'K':
+					// K (Avid/Premiere): Pause
+					e.preventDefault()
+					setIsPlaying(false)
+					break
+
+				case 'l':
+				case 'L':
+					// L (Avid/Premiere): Play
+					e.preventDefault()
+					setIsPlaying((prev) => {
+						if (!prev && (playTimeRef?.current || 0) >= duration) {
+							if (setPlayTime) setPlayTime(0)
+						}
+						return true
+					})
+					break
+
+				default:
+					break
+			}
+		}
+
+		window.addEventListener('keydown', handleKeyDown)
+		return () => window.removeEventListener('keydown', handleKeyDown)
+	}, [duration, frameStepMs, playTimeRef, setPlayTime])
+
 	// Format milliseconds to MM:SS.ms display
 	const formatTime = (ms) => {
 		const totalSeconds = ms / 1000
@@ -289,7 +380,21 @@ export function GraphicTimeline({
 			{/* Toolbar Header */}
 			<div className="timeline-toolbar d-flex flex-wrap align-items-center justify-content-between p-2 bg-light border rounded-top">
 				<div className="d-flex align-items-center gap-2">
-					<ButtonGroup size="sm">
+						<ButtonGroup size="sm">
+						<Button
+							variant="outline-secondary"
+							onClick={() => { setIsPlaying(false); if (setPlayTime) setPlayTime(0) }}
+							title="Go to start (Home / J)"
+						>
+							⏮
+						</Button>
+						<Button
+							variant="outline-secondary"
+							onClick={() => handleStepFrame(-1)}
+							title="Step -1 frame (← arrow)"
+						>
+							⏪
+						</Button>
 						<Button
 							variant={isPlaying ? 'warning' : 'primary'}
 							onClick={() => {
@@ -298,15 +403,23 @@ export function GraphicTimeline({
 								}
 								setIsPlaying(!isPlaying)
 							}}
-							title={isPlaying ? 'Pause' : 'Play Timeline Preview'}
+							title={isPlaying ? 'Pause (Space / K)' : 'Play (Space / L)'}
 						>
-							{isPlaying ? '⏸️ Pause' : '▶️ Play'}
+							{isPlaying ? '⏸️' : '▶️'}
 						</Button>
-						<Button variant="outline-secondary" onClick={() => handleStepFrame(-1)} title="Step -1 Frame">
-							⏪ -1 Frame
+						<Button
+							variant="outline-secondary"
+							onClick={() => handleStepFrame(1)}
+							title="Step +1 frame (→ arrow)"
+						>
+							⏩
 						</Button>
-						<Button variant="outline-secondary" onClick={() => handleStepFrame(1)} title="Step +1 Frame">
-							⏩ +1 Frame
+						<Button
+							variant="outline-secondary"
+							onClick={() => { setIsPlaying(false); if (setPlayTime) setPlayTime(duration) }}
+							title="Go to end (End)"
+						>
+							⏭
 						</Button>
 					</ButtonGroup>
 

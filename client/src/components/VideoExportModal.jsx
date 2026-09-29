@@ -1,17 +1,60 @@
 import * as React from 'react'
 import { Modal, Button, Form, ProgressBar, Alert } from 'react-bootstrap'
-import domtoimage from 'dom-to-image-more'
+import { resolveBgcolor } from '../lib/frameCapture.js'
+import { renderVideoFrames } from '../lib/VideoRenderer.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 
-export function VideoExportModal({ show, onHide, rendererRef, previewContainerRef, graphic }) {
+// ─── Supported export formats ────────────────────────────────────────────────
+//
+// MediaRecorder MIME types are tested at runtime; only types the browser
+// actually supports will be offered.  We define the full candidate list here
+// in priority order.
+
+const FORMAT_CANDIDATES = [
+	{ label: 'WebM – VP9 (best quality, transparent alpha)', mime: 'video/webm;codecs=vp9', ext: 'webm' },
+	{ label: 'WebM – VP8', mime: 'video/webm;codecs=vp8', ext: 'webm' },
+	{ label: 'WebM – AV1', mime: 'video/webm;codecs=av1', ext: 'webm' },
+	{ label: 'WebM (browser default codec)', mime: 'video/webm', ext: 'webm' },
+	{ label: 'MP4 – H.264 (AVC)', mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
+	{ label: 'MP4 (browser default codec)', mime: 'video/mp4', ext: 'mp4' },
+	{ label: 'Ogg – Theora', mime: 'video/ogg;codecs=theora', ext: 'ogv' },
+]
+
+function getSupportedFormats() {
+	if (typeof MediaRecorder === 'undefined') return FORMAT_CANDIDATES
+	return FORMAT_CANDIDATES.filter((f) => MediaRecorder.isTypeSupported(f.mime))
+}
+
+// ─── Background setting helpers ───────────────────────────────────────────────
+
+const DEFAULT_BG = { type: 'transparent' }
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+/**
+ * @param {object}  props
+ * @param {boolean} props.show
+ * @param {Function} props.onHide
+ * @param {object}  props.graphic       Graphic entry (folderPath, manifest, …)
+ * @param {Array}   props.schedule      Actions schedule from the timeline editor.
+ *                                      Passed as-is to setActionsSchedule on the
+ *                                      off-screen renderer so the exported video
+ *                                      reflects the same action timing as the preview.
+ * @param {object}  [props.data]        Current graphic data (form values). Defaults to {}.
+ */
+export function VideoExportModal({ show, onHide, graphic, schedule = [], data = {} }) {
 	const settingsContext = React.useContext(SettingsContext)
 	const settings = settingsContext?.settings || {}
 
 	const duration = settings.duration || 5000
 	const defaultFps = settings.quantizeFps > 0 ? settings.quantizeFps : 30
 
+	// Supported formats are computed once (stable across renders)
+	const supportedFormats = React.useMemo(() => getSupportedFormats(), [])
+
 	const [fps, setFps] = React.useState(defaultFps)
-	const [includeBackground, setIncludeBackground] = React.useState(true)
+	const [selectedMime, setSelectedMime] = React.useState(() => supportedFormats[0]?.mime ?? 'video/webm')
+	const [background, setBackground] = React.useState(DEFAULT_BG) // { type: 'transparent' } | { type: 'color', value: '#hex' }
 	const [isExporting, setIsExporting] = React.useState(false)
 	const [progress, setProgress] = React.useState(0)
 	const [statusText, setStatusText] = React.useState('')
@@ -27,12 +70,21 @@ export function VideoExportModal({ show, onHide, rendererRef, previewContainerRe
 		}
 	}, [show, settings])
 
+	// Keep selectedMime valid if supportedFormats ever changes
+	React.useEffect(() => {
+		if (supportedFormats.length && !supportedFormats.find((f) => f.mime === selectedMime)) {
+			setSelectedMime(supportedFormats[0].mime)
+		}
+	}, [supportedFormats, selectedMime])
+
+	const selectedFormat = supportedFormats.find((f) => f.mime === selectedMime) ?? supportedFormats[0]
+
 	const handleExport = async () => {
-		if (!rendererRef.current) return
+		if (!graphic?.manifest) return
 
 		setIsExporting(true)
 		setErrorText('')
-		setStatusText('Initializing recorder...')
+		setStatusText('Initializing renderer...')
 		setProgress(0)
 
 		try {
@@ -40,92 +92,73 @@ export function VideoExportModal({ show, onHide, rendererRef, previewContainerRe
 			const height = settings.height || 1080
 			const frameDurationMs = 1000 / fps
 			const totalFrames = Math.ceil(duration / frameDurationMs) + 1
+			const bgcolor = resolveBgcolor(background)
 
-			// Target element for frame capture
-			const captureElement = previewContainerRef.current || rendererRef.current.layer?.element
-
-			if (!captureElement) {
-				throw new Error('Render container element not found.')
-			}
-
-			// Offscreen recording canvas
+			// ── Offscreen recording canvas ────────────────────────────────────
 			const recordCanvas = document.createElement('canvas')
 			recordCanvas.width = width
 			recordCanvas.height = height
 			const ctx = recordCanvas.getContext('2d')
 
-			// Stream & MediaRecorder setup
-			let stream
-			if (recordCanvas.captureStream) {
-				stream = recordCanvas.captureStream(0) // manual frame capture
-			} else {
+			// ── MediaRecorder setup ───────────────────────────────────────────
+			if (!recordCanvas.captureStream) {
 				throw new Error('Canvas captureStream is not supported by your browser.')
 			}
-
+			const stream = recordCanvas.captureStream(0) // manual frame stepping
 			const videoTrack = stream.getVideoTracks()[0]
 
-			let mimeType = 'video/webm;codecs=vp9'
-			if (!MediaRecorder.isTypeSupported(mimeType)) {
-				mimeType = 'video/webm;codecs=vp8'
-				if (!MediaRecorder.isTypeSupported(mimeType)) {
-					mimeType = 'video/webm'
-				}
-			}
-
+			const mimeType = selectedFormat?.mime ?? 'video/webm'
 			const recorder = new MediaRecorder(stream, { mimeType })
 			const recordedChunks = []
 
 			recorder.ondataavailable = (e) => {
-				if (e.data && e.data.size > 0) {
-					recordedChunks.push(e.data)
-				}
+				if (e.data && e.data.size > 0) recordedChunks.push(e.data)
 			}
-
 			const recordingFinished = new Promise((resolve) => {
 				recorder.onstop = () => resolve()
 			})
-
 			recorder.start()
 
-			// Loop through frames
-			for (let i = 0; i < totalFrames; i++) {
-				const currentTime = Math.min(i * frameDurationMs, duration)
-				setStatusText(`Rendering frame ${i + 1} of ${totalFrames} (${Math.round((currentTime / 1000) * 10) / 10}s)...`)
-				setProgress(Math.round(((i + 1) / totalFrames) * 100))
+			// ── Render frames via off-screen Renderer ─────────────────────────
+			await renderVideoFrames({
+				graphic,
+				settings,
+				schedule,
+				data,
+				fps,
+				bgcolor,
+				onProgress: (frameIndex, _total, timestampMs) => {
+					setStatusText(
+						`Rendering frame ${frameIndex + 1} of ${totalFrames} (${Math.round((timestampMs / 1000) * 10) / 10}s)…`
+					)
+					setProgress(Math.round(((frameIndex + 1) / totalFrames) * 100))
+				},
+				onFrame: async (frameCanvas) => {
+					// Composite onto the recording canvas
+					ctx.clearRect(0, 0, width, height)
+					ctx.drawImage(frameCanvas, 0, 0, width, height)
 
-				// Move renderer playhead to timestamp
-				await rendererRef.current.gotoTime(currentTime)
+					// Commit frame to the MediaRecorder stream
+					if (videoTrack?.requestFrame) videoTrack.requestFrame()
 
-				// Capture frame
-				const frameCanvas = await domtoimage.toCanvas(captureElement, {
-					width,
-					height,
-					bgcolor: includeBackground ? null : '#00000000',
-				})
+					// Yield to the browser so the recorder can process the frame
+					await new Promise((resolve) => setTimeout(resolve, 30))
+				},
+			})
 
-				// Draw to offscreen canvas
-				ctx.clearRect(0, 0, width, height)
-				ctx.drawImage(frameCanvas, 0, 0, width, height)
-
-				if (videoTrack && videoTrack.requestFrame) {
-					videoTrack.requestFrame()
-				}
-
-				// Allow UI paint & recorder frame processing
-				await new Promise((resolve) => setTimeout(resolve, 30))
-			}
-
+			// ── Finalize ─────────────────────────────────────────────────────
 			setStatusText('Finalizing video file...')
 			recorder.stop()
 			await recordingFinished
 
+			const ext = selectedFormat?.ext ?? 'webm'
 			const blob = new Blob(recordedChunks, { type: mimeType })
 			const url = URL.createObjectURL(blob)
 			const a = document.createElement('a')
 			a.style.display = 'none'
 			a.href = url
-			const graphicName = graphic?.name || graphic?.manifest?.name || 'timeline'
-			a.download = `${graphicName}-timeline-export.webm`
+			const graphicName = graphic?.manifest?.name || graphic?.name || 'timeline'
+			a.download = `${graphicName}-timeline-export.${ext}`
 			document.body.appendChild(a)
 			a.click()
 			setTimeout(() => {
@@ -142,6 +175,8 @@ export function VideoExportModal({ show, onHide, rendererRef, previewContainerRe
 		}
 	}
 
+	const bgColor = background.type === 'color' ? background.value || '#000000' : '#000000'
+
 	return (
 		<Modal show={show} onHide={isExporting ? null : onHide} backdrop={isExporting ? 'static' : true} centered>
 			<Modal.Header closeButton={!isExporting}>
@@ -153,6 +188,7 @@ export function VideoExportModal({ show, onHide, rendererRef, previewContainerRe
 				{!isExporting && statusText.includes('complete') && <Alert variant="success">{statusText}</Alert>}
 
 				<Form>
+					{/* ── Frame rate ── */}
 					<Form.Group className="mb-3">
 						<Form.Label>Frame Rate (FPS)</Form.Label>
 						<Form.Select value={fps} onChange={(e) => setFps(Number(e.target.value))} disabled={isExporting}>
@@ -164,23 +200,83 @@ export function VideoExportModal({ show, onHide, rendererRef, previewContainerRe
 						</Form.Select>
 					</Form.Group>
 
+					{/* ── Export format ── */}
 					<Form.Group className="mb-3">
-						<Form.Check
-							type="checkbox"
-							label="Include Background Layer in Export"
-							checked={includeBackground}
-							onChange={(e) => setIncludeBackground(e.target.checked)}
-							disabled={isExporting}
-						/>
+						<Form.Label>Export Format</Form.Label>
+						{supportedFormats.length > 0 ? (
+							<Form.Select
+								value={selectedMime}
+								onChange={(e) => setSelectedMime(e.target.value)}
+								disabled={isExporting}
+							>
+								{supportedFormats.map((f) => (
+									<option key={f.mime} value={f.mime}>
+										{f.label}
+									</option>
+								))}
+							</Form.Select>
+						) : (
+							<Form.Control plaintext readOnly defaultValue="No supported formats detected" className="text-danger" />
+						)}
+						<Form.Text className="text-muted">Only formats supported by your browser are listed.</Form.Text>
 					</Form.Group>
 
+					{/* ── Background ── */}
 					<Form.Group className="mb-3">
-						<Form.Label>Output Resolution & Duration</Form.Label>
+						<Form.Label>Background</Form.Label>
+						<div className="d-flex align-items-center gap-3 flex-wrap">
+							<Form.Check
+								type="radio"
+								id="bg-transparent"
+								name="background"
+								label="Transparent"
+								checked={background.type === 'transparent'}
+								onChange={() => setBackground({ type: 'transparent' })}
+								disabled={isExporting}
+							/>
+							<Form.Check
+								type="radio"
+								id="bg-color"
+								name="background"
+								label="Color"
+								checked={background.type === 'color'}
+								onChange={() => setBackground({ type: 'color', value: bgColor })}
+								disabled={isExporting}
+							/>
+							{background.type === 'color' && (
+								<input
+									type="color"
+									value={bgColor}
+									onChange={(e) => setBackground({ type: 'color', value: e.target.value })}
+									disabled={isExporting}
+									style={{
+										width: '2.5rem',
+										height: '2rem',
+										padding: '0.1rem',
+										border: '1px solid #ccc',
+										borderRadius: '4px',
+										cursor: 'pointer',
+									}}
+									title="Pick background colour"
+								/>
+							)}
+						</div>
+						{background.type === 'transparent' && (
+							<Form.Text className="text-muted">
+								Transparent output is only preserved by formats that support an alpha channel (e.g. VP9 WebM).
+							</Form.Text>
+						)}
+					</Form.Group>
+
+					{/* ── Resolution & duration info ── */}
+					<Form.Group className="mb-3">
+						<Form.Label>Output Resolution &amp; Duration</Form.Label>
 						<div>
 							<strong>
 								{settings.width || 1920} × {settings.height || 1080}
 							</strong>{' '}
-							— Duration: <strong>{(duration / 1000).toFixed(2)}s</strong> ({Math.ceil(duration / (1000 / fps))} frames at {fps} fps)
+							— Duration: <strong>{(duration / 1000).toFixed(2)}s</strong> ({Math.ceil(duration / (1000 / fps))}{' '}
+							frames at {fps} fps)
 						</div>
 					</Form.Group>
 				</Form>
@@ -196,8 +292,8 @@ export function VideoExportModal({ show, onHide, rendererRef, previewContainerRe
 				<Button variant="secondary" onClick={onHide} disabled={isExporting}>
 					{statusText.includes('complete') ? 'Close' : 'Cancel'}
 				</Button>
-				<Button variant="primary" onClick={handleExport} disabled={isExporting}>
-					{isExporting ? 'Exporting...' : '🎥 Export WebM Video'}
+				<Button variant="primary" onClick={handleExport} disabled={isExporting || supportedFormats.length === 0}>
+					{isExporting ? 'Exporting...' : `🎥 Export ${selectedFormat?.ext?.toUpperCase() ?? 'Video'}`}
 				</Button>
 			</Modal.Footer>
 		</Modal>
