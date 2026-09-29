@@ -15,11 +15,12 @@
     "start": "node server/index.js"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "ffmpeg-static": "^5.3.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9",
-    "concurrently": "^7.0.0"
+    "concurrently": "^7.0.0",
+    "nodemon": "^3.1.9"
   },
   "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
 }

@@ -1,5 +1,9 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const crypto = require("crypto");
+const { execFile } = require("child_process");
 const Cache = require("./cache");
 // const { Readable } = require("stream");
 
@@ -124,6 +128,132 @@ function startServer(port, devMode) {
     }
   });
 
+  // Endpoint to convert a WebM video (with alpha) to ProRes 4444 or QTRLE MOV with transparency using FFmpeg
+  app.post(
+    ["/api/convert/webm-to-mov", "/api/convert/webm-to-prores"],
+    express.raw({
+      type: () => true,
+      limit: "1024mb",
+    }),
+    async (req, res) => {
+      let bodyBuffer =
+        Buffer.isBuffer(req.body) && req.body.length > 0 ? req.body : null;
+
+      if (!bodyBuffer) {
+        // Fallback in case raw body parser was bypassed
+        try {
+          const chunks = [];
+          for await (const chunk of req) {
+            chunks.push(chunk);
+          }
+          if (chunks.length > 0) {
+            bodyBuffer = Buffer.concat(chunks);
+          }
+        } catch (readErr) {
+          console.error("Error reading request stream:", readErr);
+        }
+      }
+
+      if (!bodyBuffer || bodyBuffer.length === 0) {
+        console.warn(
+          "[webm-to-mov] Received empty body. Headers:",
+          req.headers,
+        );
+        return res.status(400).json({ error: "Missing WebM video payload." });
+      }
+
+      const requestedFormat = (
+        req.query.format ||
+        req.query.codec ||
+        (req.path.includes("prores") ? "prores" : "prores")
+      ).toLowerCase();
+
+      const isQtrle =
+        requestedFormat === "qtrle" || requestedFormat === "animation";
+
+      const id = crypto.randomBytes(8).toString("hex");
+      const tempInput = path.join(os.tmpdir(), `ograf_input_${id}.webm`);
+      const tempOutput = path.join(os.tmpdir(), `ograf_output_${id}.mov`);
+
+      try {
+        await fs.promises.writeFile(tempInput, bodyBuffer);
+
+        let ffmpegExecutable = process.env.FFMPEG_PATH;
+        if (!ffmpegExecutable) {
+          try {
+            ffmpegExecutable = require("ffmpeg-static");
+          } catch (_) {
+            ffmpegExecutable = "ffmpeg";
+          }
+        }
+
+        const formatName = isQtrle
+          ? "QuickTime Animation (QTRLE)"
+          : "ProRes 4444";
+        console.log(
+          `[FFmpeg] Converting WebM (${bodyBuffer.length} bytes) to ${formatName} using ${ffmpegExecutable}...`,
+        );
+
+        const ffmpegArgs = isQtrle
+          ? [
+              "-y",
+              "-vcodec",
+              "libvpx-vp9", // needed to read the webm input
+              "-i",
+              tempInput,
+              "-c:v",
+              "qtrle",
+              "-pix_fmt",
+              "yuva420p",
+              tempOutput,
+            ]
+          : [
+              "-y",
+              "-vcodec",
+              "libvpx-vp9", // needed to read the webm input
+              "-i",
+              tempInput,
+              "-c:v",
+              "prores_ks",
+              "-profile:v",
+              "4",
+              "-pix_fmt",
+              "yuva444p10le",
+              tempOutput,
+            ];
+
+        await new Promise((resolve, reject) => {
+          execFile(ffmpegExecutable, ffmpegArgs, (err, _stdout, stderr) => {
+            if (err) {
+              console.error("[FFmpeg] Conversion failed:", stderr);
+              reject(new Error(stderr || err.message));
+            } else {
+              resolve();
+            }
+          });
+        });
+
+        const outputBuffer = await fs.promises.readFile(tempOutput);
+        console.log(
+          `[FFmpeg] ${formatName} conversion successful (${outputBuffer.length} bytes).`,
+        );
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Content-Type", "video/quicktime");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="converted_${isQtrle ? "qtrle" : "prores"}.mov"`,
+        );
+        res.send(outputBuffer);
+      } catch (err) {
+        console.error("Failed to convert WebM to MOV:", err);
+        res.status(500).json({ error: `Conversion failed: ${err.message}` });
+      } finally {
+        fs.promises.unlink(tempInput).catch(() => {});
+        fs.promises.unlink(tempOutput).catch(() => {});
+      }
+    },
+  );
+
   if (!devMode) {
     // Serve static files from the client/dist folder:
     const staticPath = path.resolve("./client/dist");
@@ -132,6 +262,10 @@ function startServer(port, devMode) {
 
     // Serve the index file for any non static matching files:
     app.get("*", (_req, res) => {
+      // Set CORS headets, for shared-memory multithreading:
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+
       res.sendFile(path.join(staticPath, "index.html"));
     });
   } else {
@@ -145,6 +279,10 @@ function startServer(port, devMode) {
           const buffer = Buffer.from(await blob.arrayBuffer());
 
           res.statusCode = fetchResponse.status;
+
+          // Set CORS headets, for shared-memory multithreading:
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
 
           res.type(blob.type);
           res.send(buffer);

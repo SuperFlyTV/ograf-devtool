@@ -18,7 +18,8 @@ export class Renderer {
 	}
 
 	/** Instantiate a Graphic on a RenderTarget. Returns when the load has finished. */
-	async loadGraphic(settings) {
+	async loadGraphic(settings, data) {
+		if (data !== undefined) this.data = data
 		if (this.graphicState.includes('pre')) throw new Error('loadGraphic called too quick')
 
 		const graphicPath = ResourceProvider.graphicPath(this.graphic.folderPath, this.graphic.manifest.main)

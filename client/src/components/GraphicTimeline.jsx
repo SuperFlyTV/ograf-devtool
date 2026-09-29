@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { SettingsContext } from '../contexts/SettingsContext.js'
-import { Button, ButtonGroup, Modal, Form, Badge, Dropdown, DropdownButton } from 'react-bootstrap'
+import { Button, ButtonGroup, Modal, Form, Badge } from 'react-bootstrap'
 import { OGrafForm } from '../lib/GDD/ograf-form.jsx'
 
 export function GraphicTimeline({
@@ -14,6 +14,7 @@ export function GraphicTimeline({
 }) {
 	const settingsContext = React.useContext(SettingsContext)
 	const settings = settingsContext?.settings || {}
+	const onChange = settingsContext?.onChange
 	const duration = settings.duration || 5000
 	const fps = settings.quantizeFps > 0 ? settings.quantizeFps : 30
 	const frameStepMs = 1000 / fps
@@ -23,6 +24,7 @@ export function GraphicTimeline({
 	const [editingIndex, setEditingIndex] = React.useState(null)
 	const [dragIndex, setDragIndex] = React.useState(null)
 	const [isScrubbing, setIsScrubbing] = React.useState(false)
+	const [isPlayheadHovered, setIsPlayheadHovered] = React.useState(false)
 
 	const isDraggingEventRef = React.useRef(false)
 	const dragStartPosRef = React.useRef({ x: 0, y: 0 })
@@ -71,34 +73,61 @@ export function GraphicTimeline({
 		}
 	}, [rendererRef])
 
-	// Playback Animation Loop in non-realtime preview
+	// Playback Animation Loop in non-realtime preview: waits for each gotoTime to resolve
 	React.useEffect(() => {
 		if (!isPlaying) return
 		let active = true
-		let lastTime = performance.now()
 
-		const animate = (now) => {
-			if (!active) return
-			const delta = now - lastTime
-			lastTime = now
+		const runPlayback = async () => {
+			while (active) {
+				const currentTime = playTimeRef?.current || 0
+				if (currentTime >= duration) {
+					setIsPlaying(false)
+					break
+				}
 
-			let currentTime = (playTimeRef?.current || 0) + delta
-			if (currentTime >= duration) {
-				currentTime = duration
-				setIsPlaying(false)
-			}
-			if (setPlayTime) setPlayTime(Math.round(currentTime))
-			if (currentTime < duration) {
-				requestAnimationFrame(animate)
+				const frameStartTime = performance.now()
+
+				let nextTime = currentTime + frameStepMs
+				if (settings.quantizeFps > 0) {
+					nextTime = Math.round(nextTime / frameStepMs) * frameStepMs
+				}
+				if (nextTime <= currentTime) {
+					nextTime = currentTime + frameStepMs
+				}
+				if (nextTime >= duration) {
+					nextTime = duration
+				}
+
+				// Wait for goToTime to resolve before moving the playhead ahead
+				if (setPlayTime) {
+					await setPlayTime(Math.round(nextTime))
+				}
+
+				if (!active) break
+
+				if (nextTime >= duration) {
+					setIsPlaying(false)
+					break
+				}
+
+				const frameDuration = performance.now() - frameStartTime
+				const waitMs = Math.max(0, frameStepMs - frameDuration)
+
+				if (waitMs > 4) {
+					await new Promise((resolve) => setTimeout(resolve, waitMs))
+				} else {
+					await new Promise((resolve) => requestAnimationFrame(resolve))
+				}
 			}
 		}
 
-		const animId = requestAnimationFrame(animate)
+		runPlayback()
+
 		return () => {
 			active = false
-			cancelAnimationFrame(animId)
 		}
-	}, [isPlaying, duration, playTimeRef, setPlayTime])
+	}, [isPlaying, duration, frameStepMs, settings.quantizeFps, playTimeRef, setPlayTime])
 
 	const currentPlayTime = playTimeRef?.current || 0
 	const playheadPercent = Math.min(100, Math.max(0, (currentPlayTime / duration) * 100))
@@ -113,9 +142,11 @@ export function GraphicTimeline({
 			if (settings.quantizeFps > 0) {
 				targetTime = Math.round(targetTime / frameStepMs) * frameStepMs
 			}
-			if (setPlayTime) setPlayTime(targetTime)
+			if (setPlayTime && targetTime !== (playTimeRef?.current ?? -1)) {
+				setPlayTime(targetTime)
+			}
 		},
-		[duration, frameStepMs, settings.quantizeFps, setPlayTime]
+		[duration, frameStepMs, settings.quantizeFps, setPlayTime, playTimeRef]
 	)
 
 	const handleMouseDownTrack = (e) => {
@@ -162,7 +193,9 @@ export function GraphicTimeline({
 			const rect = timelineTrackRef.current.getBoundingClientRect()
 			const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
 			let targetTime = Math.round(ratio * duration)
-			if (settings.quantizeFps > 0) {
+			if (schedule[dragIndex]?.action?.type === 'initialData') {
+				targetTime = 0
+			} else if (settings.quantizeFps > 0) {
 				targetTime = Math.round(targetTime / frameStepMs) * frameStepMs
 			}
 
@@ -319,7 +352,9 @@ export function GraphicTimeline({
 	// Helper to calculate visual label text and estimated end percentage of an event marker badge
 	const getEventLabel = React.useCallback((item) => {
 		const actionType = item.action?.type || 'action'
-		if (actionType === 'playAction') {
+		if (actionType === 'initialData') {
+			return 'Initial Data'
+		} else if (actionType === 'playAction') {
 			return item.action.params?.goto
 				? `Play (Step ${item.action.params.goto})`
 				: item.action.params?.delta
@@ -374,6 +409,7 @@ export function GraphicTimeline({
 		}
 	})
 	if (lanes.length === 0) lanes.push([])
+	if (settings.realtime) return null
 
 	return (
 		<div className="graphic-timeline-container mb-3">
@@ -465,6 +501,29 @@ export function GraphicTimeline({
 							</div>
 						)
 					})}
+
+					<Button
+						variant="outline-primary"
+						size="sm"
+						className="position-absolute end-0 top-0 py-0 px-2 fw-bold"
+						style={{
+							fontSize: '0.75rem',
+							height: '20px',
+							lineHeight: '18px',
+							zIndex: 12,
+							transform: 'translateY(-2px)',
+						}}
+						onMouseDown={(e) => e.stopPropagation()}
+						onClick={(e) => {
+							e.stopPropagation()
+							if (onChange) {
+								onChange({ ...settings, duration: duration + 1000 })
+							}
+						}}
+						title="Add 1 second to timeline duration (+1s)"
+					>
+						+ 1s
+					</Button>
 				</div>
 
 				{/* Playhead Pin & Vertical Line */}
@@ -474,20 +533,63 @@ export function GraphicTimeline({
 						left: `${playheadPercent}%`,
 						top: 0,
 						bottom: 0,
-						zIndex: 10,
+						zIndex: 15,
 						pointerEvents: 'none',
 					}}
 				>
+					{/* Hover Zone at the top area of the playhead */}
 					<div
-						className="playhead-head bg-danger position-absolute"
+						className="playhead-top-hover position-absolute d-flex flex-column align-items-center"
 						style={{
-							width: '12px',
-							height: '14px',
-							top: 0,
-							left: '-6px',
-							clipPath: 'polygon(0% 0%, 100% 0%, 50% 100%)',
+							top: '-20px',
+							left: '-28px',
+							width: '56px',
+							height: '42px',
+							pointerEvents: 'auto',
+							cursor: 'pointer',
+							zIndex: 20,
 						}}
-					></div>
+						onMouseEnter={() => setIsPlayheadHovered(true)}
+						onMouseLeave={() => setIsPlayheadHovered(false)}
+					>
+						{/* Set Duration Button on Hover */}
+						{isPlayheadHovered && currentPlayTime > 0 && currentPlayTime !== duration && (
+							<button
+								type="button"
+								className="btn btn-dark btn-sm shadow-sm position-absolute py-0 px-1"
+								style={{
+									top: '0px',
+									fontSize: '0.65rem',
+									lineHeight: '16px',
+									whiteSpace: 'nowrap',
+									borderRadius: '3px',
+									zIndex: 25,
+								}}
+								onMouseDown={(e) => e.stopPropagation()}
+								onClick={(e) => {
+									e.stopPropagation()
+									if (onChange && currentPlayTime > 0) {
+										onChange({ ...settings, duration: currentPlayTime })
+									}
+								}}
+								title={`Set duration to ${formatTime(currentPlayTime)}`}
+							>
+								⏱️ Set
+							</button>
+						)}
+
+						{/* Playhead Pin Head Triangle */}
+						<div
+							className="playhead-head bg-danger position-absolute"
+							style={{
+								width: '12px',
+								height: '14px',
+								top: '20px',
+								clipPath: 'polygon(0% 0%, 100% 0%, 50% 100%)',
+							}}
+						></div>
+					</div>
+
 					<div
 						className="playhead-line bg-danger position-absolute"
 						style={{ width: '2px', top: '14px', bottom: 0, left: '-1px' }}
@@ -512,7 +614,9 @@ export function GraphicTimeline({
 								const actionType = item.action?.type || 'action'
 								let actionLabel = actionType
 
-								if (actionType === 'playAction') {
+								if (actionType === 'initialData') {
+									actionLabel = 'Initial Data'
+								} else if (actionType === 'playAction') {
 									actionLabel = item.action.params?.goto
 										? `Play (Step ${item.action.params.goto})`
 										: item.action.params?.delta
@@ -527,7 +631,9 @@ export function GraphicTimeline({
 								}
 
 								const colorBg =
-									actionType === 'playAction'
+									actionType === 'initialData'
+										? '#087990'
+										: actionType === 'playAction'
 										? '#0d6efd'
 										: actionType === 'updateAction'
 										? '#198754'
@@ -536,6 +642,7 @@ export function GraphicTimeline({
 										: '#6f42c1'
 
 								const isDraggingThis = dragIndex === item.originalIndex
+								const isInitialData = actionType === 'initialData'
 
 								return (
 									<div
@@ -548,7 +655,7 @@ export function GraphicTimeline({
 											top: '1px',
 											zIndex: isDraggingThis ? 8 : 5,
 										}}
-										onMouseDown={(e) => handleMouseDownEvent(item.originalIndex, e)}
+										onMouseDown={(e) => (isInitialData ? null : handleMouseDownEvent(item.originalIndex, e))}
 										onClick={(e) => {
 											e.stopPropagation()
 											if (isDraggingEventRef.current) return
@@ -564,13 +671,15 @@ export function GraphicTimeline({
 												backgroundColor: colorBg,
 												filter: 'brightness(0.85)',
 												borderRadius: '2px 0 0 2px',
-												cursor: isDraggingThis ? 'grabbing' : 'grab',
+												cursor: isInitialData ? 'pointer' : isDraggingThis ? 'grabbing' : 'grab',
 												flexShrink: 0,
 												userSelect: 'none',
 											}}
-											title={`Drag to reposition event (${item.timestamp}ms)`}
+											title={isInitialData ? 'Initial data (sent on load)' : `Drag to reposition event (${item.timestamp}ms)`}
 										>
-											<span style={{ fontSize: '0.65rem', color: '#fff', lineHeight: 1, opacity: 0.9 }}>⋮</span>
+											<span style={{ fontSize: '0.65rem', color: '#fff', lineHeight: 1, opacity: 0.9 }}>
+												{isInitialData ? '🔒' : '⋮'}
+											</span>
 										</div>
 
 										{/* Event Flag Badge Body Extending to the Right */}
@@ -591,13 +700,15 @@ export function GraphicTimeline({
 											<span className="text-white-50 ms-1" style={{ fontSize: '0.65rem' }}>
 												{item.timestamp}ms
 											</span>
-											<span
-												className="btn-close btn-close-white ms-1"
-												style={{ width: '0.45em', height: '0.45em', cursor: 'pointer' }}
-												onMouseDown={(e) => e.stopPropagation()}
-												onClick={(e) => handleRemoveEvent(item.originalIndex, e)}
-												title="Remove Event"
-											></span>
+											{!isInitialData && (
+												<span
+													className="btn-close btn-close-white ms-1"
+													style={{ width: '0.45em', height: '0.45em', cursor: 'pointer' }}
+													onMouseDown={(e) => e.stopPropagation()}
+													onClick={(e) => handleRemoveEvent(item.originalIndex, e)}
+													title="Remove Event"
+												></span>
+											)}
 										</div>
 									</div>
 								)
@@ -641,9 +752,11 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 	)
 	const [jsonError, setJsonError] = React.useState('')
 
+	const isDataAction = type === 'updateAction' || type === 'initialData'
+
 	const handleFormSave = () => {
 		let parsedPayload = {}
-		if (type === 'customAction' || (type === 'updateAction' && !manifest?.schema)) {
+		if (type === 'customAction' || (isDataAction && !manifest?.schema)) {
 			if (payloadJson.trim()) {
 				try {
 					parsedPayload = JSON.parse(payloadJson)
@@ -660,7 +773,7 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 		if (type === 'playAction') {
 			if (gotoStep !== '') params.goto = Number(gotoStep)
 			if (deltaStep !== '') params.delta = Number(deltaStep)
-		} else if (type === 'updateAction') {
+		} else if (isDataAction) {
 			params.data = manifest?.schema ? updateData : parsedPayload
 		} else if (type === 'customAction') {
 			params.id = customId
@@ -668,7 +781,7 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 		}
 
 		onSave({
-			timestamp: Number(timestamp),
+			timestamp: type === 'initialData' ? 0 : Number(timestamp),
 			action: {
 				type,
 				params,
@@ -677,9 +790,9 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 	}
 
 	return (
-		<Modal show={show} onHide={onHide} centered size={type === 'updateAction' && manifest?.schema ? 'lg' : 'md'}>
+		<Modal show={show} onHide={onHide} centered size={isDataAction && manifest?.schema ? 'lg' : 'md'}>
 			<Modal.Header closeButton>
-				<Modal.Title>✏️ Edit Timeline Event</Modal.Title>
+				<Modal.Title>{type === 'initialData' ? '⚙️ Edit Initial Graphic Data' : '✏️ Edit Timeline Event'}</Modal.Title>
 			</Modal.Header>
 			<Modal.Body>
 				<Form>
@@ -689,16 +802,25 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 							type="number"
 							min={0}
 							max={duration}
-							value={timestamp}
+							disabled={type === 'initialData'}
+							value={type === 'initialData' ? 0 : timestamp}
 							onChange={(e) => setTimestamp(e.target.value)}
 						/>
+						{type === 'initialData' && (
+							<Form.Text className="text-muted">Initial data is sent at load time (t=0ms)</Form.Text>
+						)}
 					</Form.Group>
 
 					<Form.Group className="mb-3">
 						<Form.Label>Action Type</Form.Label>
-						<Form.Select value={type} onChange={(e) => setType(e.target.value)}>
-							<option value="playAction">playAction</option>
+						<Form.Select
+							value={type}
+							disabled={type === 'initialData'}
+							onChange={(e) => setType(e.target.value)}
+						>
+							<option value="initialData">initialData (Initial load data)</option>
 							<option value="updateAction">updateAction</option>
+							<option value="playAction">playAction</option>
 							<option value="stopAction">stopAction</option>
 							<option value="customAction">customAction</option>
 						</Form.Select>
@@ -771,9 +893,11 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 						</>
 					)}
 
-					{type === 'updateAction' && (
+					{isDataAction && (
 						<Form.Group className="mb-3">
-							<Form.Label className="fw-bold">Update Data Schema</Form.Label>
+							<Form.Label className="fw-bold">
+								{type === 'initialData' ? 'Initial Data Schema' : 'Update Data Schema'}
+							</Form.Label>
 							{manifest?.schema ? (
 								<div className="border p-2 rounded bg-light">
 									<OGrafForm schema={manifest.schema} data={updateData} setData={setUpdateData} />

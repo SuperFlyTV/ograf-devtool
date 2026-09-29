@@ -5,18 +5,24 @@ export class LayerHandler {
 	constructor(containerElement, id, zIndex, shadowDomMode = 'closed') {
 		this.id = id
 		this.currentGraphic = null
+		this.realtime = false
 
 		this.element = document.createElement('div')
+		this.element.setAttribute('drawable', '')
 		this.element.style.position = 'absolute'
-		this.element.style.top = 0
-		this.element.style.left = 0
-		this.element.style.right = 0
-		this.element.style.bottom = 0
+		this.element.style.top = '0px'
+		this.element.style.left = '0px'
+		this.element.style.width = '100%'
+		this.element.style.height = '100%'
 
 		this.element.style.zIndex = zIndex
 
-		// Create shadow DOM root (used to isolate styles):
-		this.shadowRoot = this.element.attachShadow({ mode: shadowDomMode })
+		if (shadowDomMode === 'none') {
+			this.shadowRoot = this.element
+		} else {
+			// Create shadow DOM root (used to isolate styles):
+			this.shadowRoot = this.element.attachShadow({ mode: shadowDomMode })
+		}
 
 		containerElement.appendChild(this.element)
 	}
@@ -34,10 +40,16 @@ export class LayerHandler {
 			this.clearGraphic()
 		}
 
+		this.lastGoToTime = undefined
+
 		const elementName = await ResourceProvider.loadGraphic(graphicPath)
 
 		// Add element to DOM:
 		const element = document.createElement(elementName)
+		element.setAttribute('drawable', '')
+		element.style.display = 'block'
+		element.style.width = '100%'
+		element.style.height = '100%'
 		this.shadowRoot.appendChild(element)
 
 		this.currentGraphic = {
@@ -49,6 +61,8 @@ export class LayerHandler {
 		// const baseUrl = graphicResourcePath(graphicPath)
 		// 	// Remove last "/":
 		// 	.replace(/\/$/, '')
+
+		console.log('Loading graphic element...', data)
 
 		// Load the element:
 		await element.load({
@@ -68,6 +82,11 @@ export class LayerHandler {
 		})
 	}
 	async clearGraphic() {
+		console.log('Clearing graphic...')
+		this.lastGoToTime = undefined
+		this.pendingGoToTime = undefined
+		this.isSeeking = false
+		this.currentSeekPromise = null
 		if (!this.currentGraphic) return
 		try {
 			await this.currentGraphic.element.dispose({})
@@ -99,10 +118,43 @@ export class LayerHandler {
 	}
 
 	async goToTime(timestamp) {
-		return this._handleError('goToTime', () => this.currentGraphic.element.goToTime({ timestamp }))
+		if (!this.currentGraphic) return
+		if (this.lastGoToTime === timestamp && this.pendingGoToTime === undefined) return
+
+		// If a seek is currently in flight, record this timestamp as the pending seek (discarding any previous intermediate pending seek)
+		if (this.isSeeking) {
+			this.pendingGoToTime = timestamp
+			return this.currentSeekPromise
+		}
+
+		this.isSeeking = true
+		let targetTimestamp = timestamp
+
+		this.currentSeekPromise = (async () => {
+			while (targetTimestamp !== undefined) {
+				if (this.currentGraphic && this.lastGoToTime !== targetTimestamp) {
+					this.lastGoToTime = targetTimestamp
+					console.log(`Going to time: ${targetTimestamp}`)
+					await this._handleError('goToTime', () =>
+						this.currentGraphic?.element?.goToTime({ timestamp: targetTimestamp })
+					)
+				}
+				targetTimestamp = this.pendingGoToTime
+				this.pendingGoToTime = undefined
+			}
+		})().finally(() => {
+			this.isSeeking = false
+			this.currentSeekPromise = null
+		})
+
+		return this.currentSeekPromise
 	}
 	async setActionsSchedule(schedule) {
-		return this._handleError('setActionsSchedule', () => this.currentGraphic.element.setActionsSchedule({ schedule }))
+		const actionsOnly = Array.isArray(schedule) ? schedule.filter((item) => item.action?.type !== 'initialData') : []
+		return this._handleError('setActionsSchedule', () => {
+			console.log('setActionsSchedule', actionsOnly)
+			return this.currentGraphic.element.setActionsSchedule({ schedule: actionsOnly })
+		})
 	}
 
 	async _handleError(methodName, cb) {

@@ -13,8 +13,8 @@ import { GraphicControlNonRealTime } from '../components/GraphicControlNonRealTi
 import { GraphicCapabilities } from '../components/GraphicCapabilities.jsx'
 import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
 import { VideoExportModal } from '../components/VideoExportModal.jsx'
-
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
+import { getDefaultDataFromSchema } from 'ograf-form'
 
 import backgroundFootball from '../../assets/backgrounds/football.jpg'
 import backgroundFireworks from '../../assets/backgrounds/fireworks.jpg'
@@ -188,15 +188,6 @@ function GraphicTesterInner({ graphic }) {
 		}
 	}, [isReloading])
 
-	const reloadGraphic = React.useCallback(async () => {
-		await rendererRef.current.clearGraphic()
-		issueTracker.clear()
-		await reloadGraphicManifest()
-		await rendererRef.current.loadGraphic(settingsRef.current).catch(issueTracker.addError)
-
-		setIsReloading(true)
-	}, [])
-
 	const reloadGraphicManifest = React.useCallback(async () => {
 		const url = graphicResourcePath(graphic.path)
 		const r = await fetch(url)
@@ -206,7 +197,29 @@ function GraphicTesterInner({ graphic }) {
 				return manifest
 			} else return prevValue
 		})
+		return manifest
 	}, [graphic.path])
+
+	const reloadGraphic = React.useCallback(async () => {
+		await rendererRef.current.clearGraphic()
+		issueTracker.clear()
+		const manifest = await reloadGraphicManifest()
+
+		// Extract initialData from scheduleRef or manifest schema
+		const initialEv = scheduleRef.current.find(
+			(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
+		)
+		let initialData = initialEv?.action?.params?.data
+		if (!initialData && manifest?.schema) {
+			initialData = getDefaultDataFromSchema(manifest.schema)
+		}
+		if (!initialData) initialData = {}
+
+		rendererRef.current.setData(initialData)
+		await rendererRef.current.loadGraphic(settingsRef.current, initialData).catch(issueTracker.addError)
+
+		setIsReloading(true)
+	}, [reloadGraphicManifest])
 
 	const triggerReloadGraphicRef = React.useRef({})
 	const triggerReloadGraphic = React.useCallback(() => {
@@ -220,7 +233,8 @@ function GraphicTesterInner({ graphic }) {
 			.then(async () => {
 				if (settingsRef.current.realtime) {
 					let i = 0
-					for (const action of scheduleRef.current) {
+					const actionsToRun = scheduleRef.current.filter((item) => item.action?.type !== 'initialData')
+					for (const action of actionsToRun) {
 						i++
 						// If auto-reload is disabled, just execute all actions in 100ms intervals:
 						const delay = triggerReloadGraphicRef.current.autoReloadEnable ? action.timestamp : i * 100
@@ -272,40 +286,60 @@ function GraphicTesterInner({ graphic }) {
 
 	const playTimeRef = React.useRef(0)
 	const [, setPlayTimeState] = React.useState(0)
-	const setPlayTime = React.useCallback((time) => {
-		rendererRef.current.gotoTime(time).catch(issueTracker.addError)
+	const setPlayTime = React.useCallback(async (time) => {
+		if (playTimeRef.current === time) return
 		playTimeRef.current = time
 		setPlayTimeState(time)
+		if (rendererRef.current) {
+			return rendererRef.current.gotoTime(time).catch(issueTracker.addError)
+		}
 	}, [])
 	const sentSetPlayTime = React.useCallback(async () => {
 		await rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.addError)
 	}, [])
 
-	const ografId = graphicManifest?.id || graphic?.id || graphic?.path
-	const storageKey = ografId ? `ograf.timeline.${ografId}` : null
+function getScheduleStorageKeys(graphic, graphicManifest) {
+	return [
+		graphic?.path ? `ograf.timeline.${graphic.path}` : null,
+		graphicManifest?.id ? `ograf.timeline.${graphicManifest.id}` : null,
+		graphic?.id ? `ograf.timeline.${graphic.id}` : null,
+	].filter(Boolean)
+}
 
-	const scheduleRef = React.useRef([])
-	const [schedule, setSchedule] = React.useState([])
-
-	// Load saved timeline schedule from localStorage on mount or when graphic/manifest changes
-	React.useEffect(() => {
-		if (!storageKey) return
+function loadStoredSchedule(graphic, graphicManifest) {
+	const keys = getScheduleStorageKeys(graphic, graphicManifest)
+	for (const key of keys) {
 		try {
-			const saved = localStorage.getItem(storageKey)
+			const saved = localStorage.getItem(key)
 			if (saved) {
 				const parsed = JSON.parse(saved)
-				if (Array.isArray(parsed) && parsed.length > 0) {
-					scheduleRef.current = parsed
-					setSchedule(parsed)
-					if (!settings.realtime && rendererRef.current) {
-						rendererRef.current.setActionsSchedule(parsed).catch(issueTracker.addError)
-					}
-				}
+				if (Array.isArray(parsed) && parsed.length > 0) return parsed
 			}
-		} catch (err) {
-			console.error('Error loading timeline schedule from localStorage:', err)
+		} catch (_err) {
+			// ignore
 		}
-	}, [storageKey])
+	}
+	return []
+}
+
+	const scheduleRef = React.useRef([])
+	const [schedule, setSchedule] = React.useState(() => {
+		const stored = loadStoredSchedule(graphic, null)
+		scheduleRef.current = stored
+		return stored
+	})
+
+	// Load saved timeline schedule from localStorage when graphic or manifest changes
+	React.useEffect(() => {
+		const stored = loadStoredSchedule(graphic, graphicManifest)
+		if (stored.length > 0) {
+			scheduleRef.current = stored
+			setSchedule(stored)
+			if (!settings.realtime && rendererRef.current) {
+				rendererRef.current.setActionsSchedule(stored).catch(issueTracker.addError)
+			}
+		}
+	}, [graphic?.path, graphicManifest?.id])
 
 	const setActionsSchedule = React.useCallback(
 		(newSchedule) => {
@@ -313,9 +347,8 @@ function GraphicTesterInner({ graphic }) {
 			scheduleRef.current = cloned
 			setSchedule(cloned)
 
-			const currentOgrafId = graphicManifest?.id || graphic?.id || graphic?.path
-			if (currentOgrafId) {
-				const key = `ograf.timeline.${currentOgrafId}`
+			const keys = getScheduleStorageKeys(graphic, graphicManifest)
+			for (const key of keys) {
 				try {
 					if (cloned.length > 0) {
 						localStorage.setItem(key, JSON.stringify(cloned))
@@ -438,17 +471,19 @@ function GraphicTesterInner({ graphic }) {
 				<div className="container-fluid">
 					<div className="graphic-tester-render card">
 						<div className="card-body">
-							<div>
-								<GraphicTimeline
-									rendererRef={rendererRef}
-									schedule={schedule}
-									setActionsSchedule={setActionsSchedule}
-									playTimeRef={playTimeRef}
-									setPlayTime={setPlayTime}
-									manifest={graphicManifest}
-									onOpenExportVideo={() => setShowExportModal(true)}
-								/>
-							</div>
+							{!settings.realtime && (
+								<div>
+									<GraphicTimeline
+										rendererRef={rendererRef}
+										schedule={schedule}
+										setActionsSchedule={setActionsSchedule}
+										playTimeRef={playTimeRef}
+										setPlayTime={setPlayTime}
+										manifest={graphicManifest}
+										onOpenExportVideo={() => setShowExportModal(true)}
+									/>
+								</div>
+							)}
 							<div>
 								{errorMessage && (
 									<div className="alert alert-danger" role="alert">
@@ -528,6 +563,7 @@ function GraphicTesterInner({ graphic }) {
 				rendererRef={rendererRef}
 				previewContainerRef={previewContainerRef}
 				graphic={graphic}
+				schedule={schedule}
 			/>
 		</SettingsContext.Provider>
 	)
@@ -684,7 +720,9 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 								className="thumbnail"
 								key={image.key}
 								title={image.key}
-								onClick={() => setBackground({ type: 'local-file', key: image.key, label: image.key, blob: image.fileContent })}
+								onClick={() =>
+									setBackground({ type: 'local-file', key: image.key, label: image.key, blob: image.fileContent })
+								}
 							>
 								<img src={URL.createObjectURL(image.fileContent)}></img>
 							</div>
@@ -692,7 +730,6 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 					})}
 				</div>
 			}
-
 			{fileHandler.dirHandle ? (
 				<>
 					{imageList.length === 0 ? <div>Click to look for images in your local folder:</div> : null}
@@ -711,8 +748,7 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 						</Button>
 					</span>
 				</OverlayTrigger>
-			)}
-			{' '}
+			)}{' '}
 			{isLoadingWebcams ? (
 				<Button disabled={true}>🎥 Looking...</Button>
 			) : (
@@ -791,4 +827,3 @@ function WebcamBackground({ deviceId }) {
 
 	return <video ref={videoRef} autoPlay muted playsInline className="background-image" />
 }
-

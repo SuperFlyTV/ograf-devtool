@@ -1,27 +1,36 @@
-import { captureFrameToCanvas } from './frameCapture.js'
+import { createOffscreenRenderContainer, captureContainerFrame } from './frameCapture.js'
 import { getDefaultDataFromSchema } from 'ograf-form'
 import { Renderer } from '../renderer/Renderer.js'
+import { ResourceProvider } from '../renderer/ResourceProvider.js'
 
 /**
- * Generate PNG thumbnails for a single ograf graphic using dom-to-image-more.
+ * Generate PNG thumbnails for a single ograf graphic.
  *
- * The graphic is rendered in an off-screen container (positioned outside the viewport)
- * using an open-mode shadow DOM so dom-to-image-more can traverse and serialise it.
- * Default schema data is injected before loading so that the graphic has something to show.
- * The resulting native-resolution canvas is rescaled to every requested output resolution.
- * If a resolution has `addCropped: true`, an additional cropped variant is produced by
- * trimming fully-transparent border pixels.
+ * Supports both realtime and non-realtime graphics:
+ *   - For non-realtime: loads with renderType "non-realtime", sets action schedule if provided,
+ *     and seeks with gotoTime.
+ *   - For realtime: loads with renderType "realtime", plays action, and waits for captureDelay.
+ *
+ * Supports both "html-in-canvas" (Chrome native) and "dom-to-image" capture methods.
  *
  * @param {object} opts
  * @param {object}   opts.graphic           Graphic entry from fileHandler.listGraphics()
- * @param {object}   opts.thumbnailSettings { resolutions, transparent, captureDelay }
+ * @param {object}   opts.thumbnailSettings { resolutions, transparent, captureDelay, skipAnimation, time, schedule, renderMethod }
  *   resolutions: Array<{ width, height, addCropped? }>
  * @param {Function} opts.onProgress        (message: string) => void
  * @param {Function} opts.writeFileFn       async (path: string, blob: Blob) => void
  * @returns {Promise<Array<{file:string, resolution:{width:number,height:number}}>>}
  */
 export async function generateThumbnailsForGraphic({ graphic, thumbnailSettings, onProgress, writeFileFn }) {
-	const { resolutions, transparent, captureDelay = 1000, skipAnimation = true } = thumbnailSettings
+	const {
+		resolutions,
+		transparent,
+		captureDelay = 1000,
+		skipAnimation = true,
+		time = 0,
+		schedule = [],
+		renderMethod = 'html-in-canvas',
+	} = thumbnailSettings
 
 	if (!resolutions || resolutions.length === 0) throw new Error('No resolutions specified')
 
@@ -33,47 +42,119 @@ export async function generateThumbnailsForGraphic({ graphic, thumbnailSettings,
 	)
 
 	// ── Off-screen container ──────────────────────────────────────────────────
-	// Must be in the DOM for the browser to lay out and paint the graphic,
-	// but placed far off the left edge so it is invisible to the user.
-	const container = document.createElement('div')
-	container.style.position = 'fixed'
-	container.style.top = '0'
-	container.style.left = `-${maxRes.width + 100}px`
-	container.style.width = `${maxRes.width}px`
-	container.style.height = `${maxRes.height}px`
-	container.style.overflow = 'hidden'
-	container.style.pointerEvents = 'none'
-	document.body.appendChild(container)
+	const containerInfo = createOffscreenRenderContainer({
+		width: maxRes.width,
+		height: maxRes.height,
+		renderMethod,
+	})
+
+	let graphicElement = null
+	let renderer = null
 
 	try {
 		// ── Derive default data from schema ───────────────────────────────────
 		const defaultData = graphic.manifest?.schema ? getDefaultDataFromSchema(graphic.manifest.schema) : {}
 
-		// ── Load and play the graphic ─────────────────────────────────────────
+		// ── Load and play / seek the graphic ───────────────────────────────────
 		onProgress('Loading graphic…')
 
-		// 'open' shadow DOM mode is required so dom-to-image-more can traverse it
-		const renderer = new Renderer(container, { shadowDomMode: 'open' })
-		renderer.setGraphic(graphic)
-		renderer.setData(defaultData)
+		const isNonRealTime =
+			graphic.manifest?.supportsNonRealTime &&
+			(!graphic.manifest?.supportsRealTime || thumbnailSettings.realtime === false)
 
-		await renderer.loadGraphic({
-			realtime: true,
-			width: maxRes.width,
-			height: maxRes.height,
-		})
-		await renderer.playAction({ skipAnimation: skipAnimation || undefined })
+		if (containerInfo.renderMethod === 'html-in-canvas') {
+			// Direct mount into canvas with Shadow DOM style encapsulation
+			const graphicPath = ResourceProvider.graphicPath(graphic.folderPath, graphic.manifest.main)
+			const elementName = await ResourceProvider.loadGraphic(graphicPath)
 
-		// ── Wait for animation to settle ──────────────────────────────────────
-		onProgress(`Waiting ${captureDelay} ms for graphic to settle…`)
-		await sleep(captureDelay)
+			graphicElement = document.createElement(elementName)
+			graphicElement.setAttribute('drawable', '')
+			graphicElement.style.position = 'absolute'
+			graphicElement.style.top = '0px'
+			graphicElement.style.left = '0px'
+			graphicElement.style.width = `${maxRes.width}px`
+			graphicElement.style.height = `${maxRes.height}px`
+			graphicElement.style.display = 'block'
+			graphicElement.style.margin = '0'
+			graphicElement.style.padding = '0'
+			containerInfo.canvasElement.appendChild(graphicElement)
+
+			await graphicElement.load({
+				renderType: isNonRealTime ? 'non-realtime' : 'realtime',
+				data: defaultData,
+				renderCharacteristics: {
+					resolution: { width: maxRes.width, height: maxRes.height },
+					_environment: 'OGraf DevTool',
+				},
+			})
+
+			// If the graphic populated its light DOM (and didn't create its own shadowRoot),
+			// adopt its children into an open ShadowRoot on graphicElement for total style encapsulation:
+			if (!graphicElement.shadowRoot && graphicElement.childNodes.length > 0) {
+				const shadow = graphicElement.attachShadow({ mode: 'open' })
+				while (graphicElement.firstChild) {
+					shadow.appendChild(graphicElement.firstChild)
+				}
+			}
+
+			if (isNonRealTime) {
+				if (schedule && schedule.length > 0 && typeof graphicElement.setActionsSchedule === 'function') {
+					const actionSchedule = schedule.filter((item) => item.action?.type !== 'initialData')
+					await graphicElement.setActionsSchedule({ schedule: actionSchedule })
+				}
+
+				const seekTime = time ?? captureDelay ?? 0
+				onProgress(`Seeking to ${seekTime} ms…`)
+				if (typeof graphicElement.goToTime === 'function') {
+					await graphicElement.goToTime({ timestamp: seekTime })
+				}
+			} else {
+				if (typeof graphicElement.playAction === 'function') {
+					await graphicElement.playAction({ skipAnimation: skipAnimation || undefined })
+				}
+
+				onProgress(`Waiting ${captureDelay} ms for graphic to settle…`)
+				await sleep(captureDelay)
+			}
+		} else {
+			renderer = new Renderer(containerInfo.container, { shadowDomMode: 'open' })
+			renderer.setGraphic(graphic)
+			renderer.setData(defaultData)
+
+			if (isNonRealTime) {
+				await renderer.loadGraphic({
+					realtime: false,
+					width: maxRes.width,
+					height: maxRes.height,
+				})
+
+				if (schedule && schedule.length > 0) {
+					await renderer.setActionsSchedule(schedule)
+				}
+
+				const seekTime = time ?? captureDelay ?? 0
+				onProgress(`Seeking to ${seekTime} ms…`)
+				await renderer.gotoTime(seekTime)
+			} else {
+				await renderer.loadGraphic({
+					realtime: true,
+					width: maxRes.width,
+					height: maxRes.height,
+				})
+				await renderer.playAction({ skipAnimation: skipAnimation || undefined })
+
+				// Wait for animation to settle
+				onProgress(`Waiting ${captureDelay} ms for graphic to settle…`)
+				await sleep(captureDelay)
+			}
+		}
 
 		// ── Capture native-resolution canvas ──────────────────────────────────
 		onProgress(`Capturing at ${maxRes.width}×${maxRes.height}…`)
 
 		/** @type {HTMLCanvasElement} */
-		const nativeCanvas = await captureFrameToCanvas(
-			container,
+		const nativeCanvas = await captureContainerFrame(
+			containerInfo,
 			maxRes.width,
 			maxRes.height,
 			transparent ? null : '#000000'
@@ -130,14 +211,18 @@ export async function generateThumbnailsForGraphic({ graphic, thumbnailSettings,
 
 		// Dispose the graphic cleanly
 		try {
-			await renderer.clearGraphic()
+			if (graphicElement && typeof graphicElement.dispose === 'function') {
+				await graphicElement.dispose({})
+			} else if (renderer) {
+				await renderer.clearGraphic()
+			}
 		} catch (_) {
 			// ignore disposal errors during thumbnail generation
 		}
 
 		return results
 	} finally {
-		container.remove()
+		containerInfo.cleanup()
 	}
 }
 
@@ -146,7 +231,10 @@ export async function generateThumbnailsForGraphic({ graphic, thumbnailSettings,
  *
  * Scans all pixels and finds the tightest bounding-box of pixels whose alpha
  * channel exceeds `threshold`. Returns a new canvas containing only that region
- * (and its actual pixel dimensions), or `null` if every pixel is transparent.
+ * (and its actual pixel dimensions), or `null` if:
+ *   - every pixel is transparent,
+ *   - the cropped dimensions match the original canvas dimensions (no trimming occurred), or
+ *   - the cropped dimensions are less than 50x50px.
  *
  * @param {HTMLCanvasElement} canvas
  * @param {number} [threshold=8]   Alpha values <= threshold are treated as "empty"
@@ -177,13 +265,14 @@ function cropTransparentBorder(canvas, threshold = 8) {
 	// Fully transparent — nothing to crop to
 	if (maxX < 0) return null
 
-	// No crop needed — the entire canvas is already filled
-	if (minX === 0 && minY === 0 && maxX === width - 1 && maxY === height - 1) {
-		return { canvas, width, height }
-	}
-
 	const croppedW = maxX - minX + 1
 	const croppedH = maxY - minY + 1
+
+	// No crop needed — the entire canvas is already filled (same dimensions as source thumbnail)
+	if (croppedW === width && croppedH === height) return null
+
+	// Cropped size is less than 50x50px
+	if (croppedW < 50 || croppedH < 50) return null
 
 	const out = document.createElement('canvas')
 	out.width = croppedW
