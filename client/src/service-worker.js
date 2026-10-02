@@ -131,7 +131,8 @@ self.addEventListener('fetch', function (event) {
 		if (
 			parsedUrl.pathname.startsWith('/api/') ||
 			parsedUrl.pathname.startsWith('/ograf') ||
-			parsedUrl.pathname.startsWith('/clear-cache')
+			parsedUrl.pathname.startsWith('/clear-cache') ||
+			parsedUrl.pathname.startsWith('/samples')
 		) {
 			return
 		}

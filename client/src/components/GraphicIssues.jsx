@@ -72,67 +72,77 @@ export function GraphicIssues({ manifest, graphic }) {
 	}, [manifest, validator])
 
 	if (!validator) {
-		return <div>Loading schema validator...</div>
+		return <div className="text-muted small p-2">Loading schema validator...</div>
 	}
 
 	return (
-		<>
+		<div className="graphic-issues-container">
 			{graphicManifestErrors.length || graphicManifestFileErrors.length ? (
-				<div className="alert alert-danger">
-					<div>Found issues in the Graphics manifest:</div>
-					<div>
-						<ul>
-							{graphicManifestFileErrors.map((str, i) => {
-								return <li key={i}>{linebreaks(str)}</li>
-							})}
-							{graphicManifestErrors.map((str, i) => {
-								return <li key={i}>{linebreaks(str)}</li>
-							})}
-						</ul>
-					</div>
+				<div className="alert alert-danger p-2 small mb-2">
+					<strong className="text-danger-emphasis">Found issues in the Graphics manifest:</strong>
+					<ul className="mb-0 mt-1 ps-3">
+						{graphicManifestFileErrors.map((str, i) => (
+							<li key={i}>{linebreaks(str)}</li>
+						))}
+						{graphicManifestErrors.map((str, i) => (
+							<li key={i}>{linebreaks(str)}</li>
+						))}
+					</ul>
 				</div>
 			) : null}
 			{graphicModuleErrors.length ? (
-				<div className="alert alert-danger">
-					<div>Found issues with the Graphic module:</div>
-					<div>
-						<ul>
-							{graphicModuleErrors.map((str, i) => {
-								return <li key={i}>{linebreaks(str)}</li>
-							})}
-						</ul>
-					</div>
+				<div className="alert alert-danger p-2 small mb-2">
+					<strong className="text-danger-emphasis">Found issues with the Graphic module:</strong>
+					<ul className="mb-0 mt-1 ps-3">
+						{graphicModuleErrors.map((str, i) => (
+							<li key={i}>{linebreaks(str)}</li>
+						))}
+					</ul>
 				</div>
 			) : null}
 
 			{graphicManifestErrors.length === 0 && graphicModuleErrors.length === 0 ? (
-				<>
-					<span>No issues found in the graphic manifest or code 👍</span>
-					<div>
-						<Button variant="outline-secondary" size="sm" onClick={() => runGraphicTest()}>
-							Run in-depth test
-						</Button>
-					</div>
-				</>
+				<div className="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 p-2 small mb-2">
+					<span className="fw-medium">✓ No issues found in manifest or code</span>
+					<Button variant="outline-light" size="sm" className="btn-test-indepth" onClick={() => runGraphicTest()}>
+						Run in-depth test
+					</Button>
+				</div>
 			) : null}
 
 			{graphicModuleTestErrorLog ? (
 				<div
-					className={`alert ${
+					className={`in-depth-test-card rounded p-2 mt-2 ${
 						graphicModuleTestErrorLog.status === true
-							? 'alert-success'
+							? 'border-success'
 							: graphicModuleTestErrorLog.status === false
-							? 'alert-danger'
-							: 'alert-info'
+							? 'border-danger'
+							: 'border-info'
 					}`}
 				>
-					<div>Test results:</div>
-					<div>
-						<pre>{graphicModuleTestErrorLog.testLog}</pre>
+					<div className="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom border-secondary-subtle">
+						<span className="fw-bold fs-7">
+							{graphicModuleTestErrorLog.status === true
+								? '✅ In-Depth Test Passed'
+								: graphicModuleTestErrorLog.status === false
+								? '❌ In-Depth Test Failed'
+								: 'ℹ️ Test In Progress'}
+						</span>
+						<Button
+							variant="outline-secondary"
+							size="sm"
+							className="py-0 px-2 fs-8"
+							onClick={() => setGraphicModuleTestErrorLog(null)}
+						>
+							Dismiss
+						</Button>
+					</div>
+					<div className="in-depth-log-wrapper">
+						<pre className="in-depth-log-content mb-0">{graphicModuleTestErrorLog.testLog}</pre>
 					</div>
 				</div>
 			) : null}
-		</>
+		</div>
 	)
 }
 function linebreaks(str) {

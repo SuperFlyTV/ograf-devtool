@@ -17,8 +17,10 @@ export function GraphicControlNonRealTime({
 	sentSetPlayTime,
 }) {
 	const settingsContext = React.useContext(SettingsContext)
-	const settings = JSON.parse(JSON.stringify(settingsContext.settings))
+	const settings = settingsContext.settings
 	const onChange = settingsContext.onChange
+	const settingsRef = React.useRef(settings)
+	settingsRef.current = settings
 
 	const initialDataFromSchema = React.useMemo(() => {
 		return manifest?.schema ? getDefaultDataFromSchema(manifest.schema) : {}
@@ -38,17 +40,17 @@ export function GraphicControlNonRealTime({
 			try {
 				await rendererRef.current.clearGraphic()
 				rendererRef.current.setData(newInitialData)
-				await rendererRef.current.loadGraphic(settings, newInitialData)
+				await rendererRef.current.loadGraphic(settingsRef.current, newInitialData)
 				await sendSetActionsSchedule()
 				await sentSetPlayTime()
 			} catch (err) {
 				issueTracker.addError(err)
 			}
 		},
-		[rendererRef, settings, sendSetActionsSchedule, sentSetPlayTime]
+		[rendererRef, sendSetActionsSchedule, sentSetPlayTime]
 	)
 
-	// Sync local data state and reload graphic when the initialData in schedule changes (e.g. from timeline editor or storage)
+	// Sync local data state and reload graphic when the initialData in schedule changes
 	React.useEffect(() => {
 		const ev = schedule.find(
 			(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
@@ -129,9 +131,7 @@ export function GraphicControlNonRealTime({
 	const [gotoStep, setGotoStep] = React.useState(1)
 	const [deltaStep, setDeltaStep] = React.useState(1)
 
-	const supportsNonRealTime = manifest.supportsNonRealTime
-	const duration = settings.duration || 5000
-
+	const supportsNonRealTime = manifest?.supportsNonRealTime
 	const currentPlayTime = playTimeRef?.current || 0
 
 	React.useEffect(() => {
@@ -143,20 +143,6 @@ export function GraphicControlNonRealTime({
 			rendererRef.current.setData(dataToSet)
 		}
 	}, [data, schedule, rendererRef])
-
-	const updatePlayTime = React.useCallback(
-		(time) => {
-			time = parseInt(time, 10)
-			if (Number.isNaN(time)) time = 0
-
-			const quantizedTime = settings.quantizeFps > 0 ? time - (time % (1000 / settings.quantizeFps)) : time
-
-			if (setPlayTime) {
-				setPlayTime(quantizedTime)
-			}
-		},
-		[settings, setPlayTime]
-	)
 
 	const addToSchedule = React.useCallback(
 		(timestamp, type, params) => {
@@ -191,7 +177,7 @@ export function GraphicControlNonRealTime({
 	)
 
 	return (
-		<div>
+		<div className="graphic-control-panel">
 			<Accordion
 				defaultActiveKey={settings.viewControlAccordion}
 				alwaysOpen
@@ -200,87 +186,118 @@ export function GraphicControlNonRealTime({
 				}}
 			>
 				<Accordion.Item eventKey="0">
-					<Accordion.Header>Graphic Control (Non-Realtime)</Accordion.Header>
-					<Accordion.Body>
+					<Accordion.Header>Graphic Control (Non-Real-Time)</Accordion.Header>
+					<Accordion.Body className="p-3">
 						{supportsNonRealTime ? (
-							<>
-								<div className="mb-3 d-flex gap-2">
-									<Button
-										variant="primary"
-										onClick={() => {
-											const initialEv = schedule.find(
-												(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
-											)
-											const dataToLoad = initialEv?.action?.params?.data ?? data
-											reloadGraphicWithInitialData(dataToLoad)
-										}}
-									>
-										Load Graphic
-									</Button>
-									<Button
-										variant="outline-danger"
-										onClick={() => {
-											rendererRef.current.clearGraphic().catch(issueTracker.addError)
-										}}
-									>
-										Clear Graphic
-									</Button>
+							<div className="control-sections-wrapper d-flex flex-column gap-3">
+								{/* Lifecycle Controls */}
+								<div className="control-section-card p-2 rounded">
+									<div className="d-flex flex-wrap gap-2">
+										<Button
+											variant="primary"
+											className="px-3 fw-semibold"
+											onClick={() => {
+												const initialEv = schedule.find(
+													(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
+												)
+												const dataToLoad = initialEv?.action?.params?.data ?? data
+												reloadGraphicWithInitialData(dataToLoad)
+											}}
+										>
+											Load Graphic
+										</Button>
+										<Button
+											variant="outline-danger"
+											className="px-3"
+											onClick={() => {
+												rendererRef.current?.clearGraphic().catch(issueTracker.addError)
+											}}
+										>
+											Clear Graphic
+										</Button>
+									</div>
 								</div>
 
-								<div className="graphics-manifest-schema mb-3 border p-2 rounded bg-light">
-									<h6>Initial Data</h6>
-									{manifest.schema && <OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />}
-								</div>
+								{/* Initial Data Schema Form (t = 0 ms) */}
+								{manifest.schema && (
+									<div className="control-section-card rounded p-3">
+										<div className="d-flex justify-content-between align-items-center mb-2">
+											<div className="d-flex align-items-center gap-2">
+												<h6 className="section-card-title mb-0">
+													Initial Data
+												</h6>
+												<Badge bg="secondary" className="fs-8">t = 0 ms</Badge>
+											</div>
+										</div>
+										<div className="graphics-manifest-schema m-0">
+											<OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />
+										</div>
+									</div>
+								)}
 
-								<div className="mb-3">
-									<Form.Check
-										type="switch"
-										id="skip-animation-switch"
-										label="skipAnimation flag on actions"
-										onChange={(e) => setSkipAnimation(e.target.checked)}
-										checked={skipAnimation}
-									/>
-								</div>
+								{/* Add Event at Current Playhead */}
+								<div className="control-section-card rounded p-3">
+									<div className="d-flex justify-content-between align-items-center mb-3">
+										<div className="d-flex align-items-center gap-2">
+											<h6 className="section-card-title mb-0">
+												Add Event at Playhead
+											</h6>
+											<Badge bg="info" className="text-dark font-monospace fs-8">
+												{currentPlayTime.toLocaleString()} ms
+											</Badge>
+										</div>
+										<Form.Check
+											type="switch"
+											id="nrt-skip-animation-switch"
+											label={<span className="fs-7 text-slate-300">skipAnimation</span>}
+											onChange={(e) => setSkipAnimation(e.target.checked)}
+											checked={skipAnimation}
+											className="mb-0"
+										/>
+									</div>
 
-								<div className="mb-3 border p-2 rounded">
-									<h6>Add Event at Current Playhead</h6>
-									<div className="d-flex flex-wrap gap-2 mb-2">
-										<ButtonGroup size="sm">
+									{/* Quick Action Event Buttons */}
+									<div className="mb-3">
+										<ButtonGroup className="w-100">
 											<Button
 												variant="success"
+												className="fw-semibold"
 												onClick={() => {
 													addToSchedule(currentPlayTime, 'updateAction', { data })
 												}}
 											>
-												➕ Add Update
+												+ Add Update
 											</Button>
 											<Button
 												variant="primary"
+												className="fw-semibold"
 												onClick={() => {
 													addToSchedule(currentPlayTime, 'playAction', { skipAnimation })
 												}}
 											>
-												➕ Add Play
+												+ Add Play
 											</Button>
 											<Button
 												variant="danger"
+												className="fw-semibold"
 												onClick={() => {
 													addToSchedule(currentPlayTime, 'stopAction', { skipAnimation })
 												}}
 											>
-												➕ Add Stop
+												+ Add Stop
 											</Button>
 										</ButtonGroup>
 									</div>
 
-									<ButtonToolbar className="mb-2">
-										<InputGroup size="sm" className="me-2 mb-1">
+									{/* Step Actions */}
+									<ButtonToolbar aria-label="Step events toolbar" className="d-flex gap-2">
+										<InputGroup size="sm" className="flex-grow-1">
 											<Form.Control
 												type="number"
 												placeholder="Step"
 												value={gotoStep}
 												onChange={(e) => setGotoStep(parseInt(e.target.value, 10) || 0)}
-												style={{ width: '4em' }}
+												style={{ maxWidth: '4.5rem' }}
 											/>
 											<Button
 												variant="outline-primary"
@@ -288,17 +305,17 @@ export function GraphicControlNonRealTime({
 													addToSchedule(currentPlayTime, 'playAction', { goto: gotoStep, skipAnimation })
 												}}
 											>
-												Goto Step
+												+ Goto Step
 											</Button>
 										</InputGroup>
 
-										<InputGroup size="sm" className="me-2 mb-1">
+										<InputGroup size="sm" className="flex-grow-1">
 											<Form.Control
 												type="number"
-												placeholder="Step"
+												placeholder="Delta"
 												value={deltaStep}
 												onChange={(e) => setDeltaStep(parseInt(e.target.value, 10) || 0)}
-												style={{ width: '4em' }}
+												style={{ maxWidth: '4.5rem' }}
 											/>
 											<Button
 												variant="outline-primary"
@@ -306,12 +323,18 @@ export function GraphicControlNonRealTime({
 													addToSchedule(currentPlayTime, 'playAction', { delta: deltaStep, skipAnimation })
 												}}
 											>
-												Delta Step
+												+ Delta Step
 											</Button>
 										</InputGroup>
 									</ButtonToolbar>
+								</div>
 
-									<div>
+								{/* Custom Actions */}
+								{manifest.customActions && Object.keys(manifest.customActions).length > 0 && (
+									<div className="control-section-card rounded p-3">
+										<h6 className="section-card-title mb-2">
+											Add Custom Action at Playhead
+										</h6>
 										<GraphicsActions
 											rendererRef={rendererRef}
 											manifest={manifest}
@@ -323,10 +346,12 @@ export function GraphicControlNonRealTime({
 											}}
 										/>
 									</div>
-								</div>
-							</>
+								)}
+							</div>
 						) : (
-							<div className="alert alert-warning">This graphic does not support non-real-time rendering.</div>
+							<div className="alert alert-warning mb-0" role="alert">
+								This graphic does not support non-real-time rendering.
+							</div>
 						)}
 					</Accordion.Body>
 				</Accordion.Item>
@@ -336,15 +361,19 @@ export function GraphicControlNonRealTime({
 }
 
 function GraphicsActions({ manifest, rendererRef, onAction }) {
+	const customActionsList = Object.values(manifest?.customActions || {})
+
+	if (customActionsList.length === 0) return null
+
 	return (
 		<>
-			<div className="graphics-actions flex-wrap">
-				{Object.values(manifest.customActions || {}).map((action) => {
+			<div className="graphics-actions flex-wrap mb-2">
+				{customActionsList.map((action) => {
 					return <GraphicAction key={action.id} rendererRef={rendererRef} action={action} onAction={onAction} />
 				})}
 			</div>
-			<div className="text-muted fs-7 mt-1">
-				<i>Click an action button above to add it to the schedule at the playhead time.</i>
+			<div className="helper-tip-text fs-7">
+				<i>Click an action above to add it to the timeline schedule at current playhead.</i>
 			</div>
 		</>
 	)

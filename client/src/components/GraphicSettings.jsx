@@ -29,21 +29,11 @@ export function GraphicSettings() {
 				}}
 			>
 				<Accordion.Item eventKey="0">
-					<Accordion.Header>Settings</Accordion.Header>
+					<Accordion.Header>Renderer Settings</Accordion.Header>
 					<Accordion.Body>
 						<Form>
 							<Row>
 								<Col md={6}>
-									<Form.Group className="mb-3">
-										<Form.Label>Renderer Type</Form.Label>
-										<Form.Select
-											value={`${settings.realtime ? '1' : '0'}`}
-											onChange={(e) => handleOnChange(e, 'realtime', (v) => v === '1')}
-										>
-											<option value="1">Real Time</option>
-											<option value="0">Non Real Time</option>
-										</Form.Select>
-									</Form.Group>
 									<Form.Group className="mb-3">
 										<Form.Label>Renderer Width</Form.Label>
 										<Form.Control
@@ -76,18 +66,17 @@ export function GraphicSettings() {
 									</Form.Group>
 								</Col>
 								<Col md={6}>
-									<Form.Group className="mb-3">
-										<Form.Label>Duration (ms)</Form.Label>
-										<Form.Control
-											type="number"
-											value={settings.duration}
-											onChange={(e) => handleOnChange(e, 'duration')}
-										/>
-										<Form.Text>Duration of the graphic in milliseconds</Form.Text>
-									</Form.Group>
-
 									{!settings.realtime ? (
 										<>
+											<Form.Group className="mb-3">
+												<Form.Label>Duration (ms)</Form.Label>
+												<Form.Control
+													type="number"
+													value={settings.duration}
+													onChange={(e) => handleOnChange(e, 'duration')}
+												/>
+												<Form.Text>Duration of the graphic in milliseconds</Form.Text>
+											</Form.Group>
 											<Form.Group className="mb-3">
 												<Form.Label>Quantize point-in-time (fps)</Form.Label>
 												<Form.Control

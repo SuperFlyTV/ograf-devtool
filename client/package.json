@@ -16,6 +16,8 @@
     "vite-plugin-node-polyfills": "^0.23.0"
   },
   "dependencies": {
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
+    "@fortawesome/react-fontawesome": "^3.5.0",
     "@mediabunny/prores": "^1.61.0",
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.3",

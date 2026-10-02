@@ -414,18 +414,20 @@ export function GraphicTimeline({
 	return (
 		<div className="graphic-timeline-container mb-3">
 			{/* Toolbar Header */}
-			<div className="timeline-toolbar d-flex flex-wrap align-items-center justify-content-between p-2 bg-light border rounded-top">
+			<div className="timeline-toolbar d-flex flex-wrap align-items-center justify-content-between px-3 py-2">
 				<div className="d-flex align-items-center gap-2">
-						<ButtonGroup size="sm">
+					<ButtonGroup size="sm" className="timeline-ctrl-group">
 						<Button
-							variant="outline-secondary"
+							variant="outline-light"
+							className="btn-timeline-ctrl"
 							onClick={() => { setIsPlaying(false); if (setPlayTime) setPlayTime(0) }}
 							title="Go to start (Home / J)"
 						>
 							⏮
 						</Button>
 						<Button
-							variant="outline-secondary"
+							variant="outline-light"
+							className="btn-timeline-ctrl"
 							onClick={() => handleStepFrame(-1)}
 							title="Step -1 frame (← arrow)"
 						>
@@ -433,6 +435,7 @@ export function GraphicTimeline({
 						</Button>
 						<Button
 							variant={isPlaying ? 'warning' : 'primary'}
+							className="btn-timeline-ctrl fw-bold px-3"
 							onClick={() => {
 								if (!isPlaying && currentPlayTime >= duration) {
 									if (setPlayTime) setPlayTime(0)
@@ -441,17 +444,19 @@ export function GraphicTimeline({
 							}}
 							title={isPlaying ? 'Pause (Space / K)' : 'Play (Space / L)'}
 						>
-							{isPlaying ? '⏸️' : '▶️'}
+							{isPlaying ? '⏸' : '▶'}
 						</Button>
 						<Button
-							variant="outline-secondary"
+							variant="outline-light"
+							className="btn-timeline-ctrl"
 							onClick={() => handleStepFrame(1)}
 							title="Step +1 frame (→ arrow)"
 						>
 							⏩
 						</Button>
 						<Button
-							variant="outline-secondary"
+							variant="outline-light"
+							className="btn-timeline-ctrl"
 							onClick={() => { setIsPlaying(false); if (setPlayTime) setPlayTime(duration) }}
 							title="Go to end (End)"
 						>
@@ -459,9 +464,11 @@ export function GraphicTimeline({
 						</Button>
 					</ButtonGroup>
 
-					<div className="time-display font-monospace fw-bold ms-2 me-2">
-						{formatTime(currentPlayTime)} / {formatTime(duration)}{' '}
-						<span className="text-muted fs-7">({Math.floor(currentPlayTime / frameStepMs)}f)</span>
+					<div className="time-display font-monospace ms-2 me-2">
+						<span className="current-tc">{formatTime(currentPlayTime)}</span>
+						<span className="text-secondary mx-1">/</span>
+						<span className="total-tc">{formatTime(duration)}</span>{' '}
+						<span className="text-muted fs-7 ms-1">({Math.floor(currentPlayTime / frameStepMs)}f)</span>
 					</div>
 
 					{statusMessage && <Badge bg={statusMessage.variant}>{statusMessage.text}</Badge>}
@@ -469,7 +476,7 @@ export function GraphicTimeline({
 
 				<div className="d-flex align-items-center gap-2 mt-2 mt-sm-0">
 					{onOpenExportVideo && (
-						<Button variant="success" size="sm" onClick={onOpenExportVideo}>
+						<Button variant="outline-info" size="sm" className="fw-semibold btn-export-video" onClick={onOpenExportVideo}>
 							🎥 Export Video
 						</Button>
 					)}
@@ -478,13 +485,13 @@ export function GraphicTimeline({
 
 			{/* Timeline Ruler & Track Box */}
 			<div
-				className="timeline-track-wrapper border border-top-0 rounded-bottom p-2 bg-white position-relative select-none"
+				className="timeline-track-wrapper p-3 position-relative select-none"
 				ref={timelineTrackRef}
 				onMouseDown={handleMouseDownTrack}
-				style={{ cursor: isScrubbing ? 'ew-resize' : 'pointer', minHeight: `${60 + lanes.length * 20}px` }}
+				style={{ cursor: isScrubbing ? 'ew-resize' : 'pointer', minHeight: `${60 + lanes.length * 22}px` }}
 			>
 				{/* Time Ruler */}
-				<div className="timeline-ruler position-relative border-bottom mb-2" style={{ height: '24px' }}>
+				<div className="timeline-ruler position-relative mb-2" style={{ height: '24px' }}>
 					{rulerTicks.map((tickMs) => {
 						const posPercent = (tickMs / duration) * 100
 						if (posPercent > 100) return null
@@ -494,7 +501,7 @@ export function GraphicTimeline({
 								className="timeline-ruler-tick position-absolute"
 								style={{ left: `${posPercent}%`, top: 0, bottom: 0 }}
 							>
-								<div className="tick-line border-start h-50"></div>
+								<div className="tick-line h-50"></div>
 								<div className="tick-label text-muted" style={{ fontSize: '0.7rem', transform: 'translateX(-50%)' }}>
 									{tickMs / 1000}s
 								</div>
@@ -503,11 +510,11 @@ export function GraphicTimeline({
 					})}
 
 					<Button
-						variant="outline-primary"
+						variant="outline-info"
 						size="sm"
-						className="position-absolute end-0 top-0 py-0 px-2 fw-bold"
+						className="position-absolute end-0 top-0 py-0 px-2 fw-bold btn-timeline-add-sec"
 						style={{
-							fontSize: '0.75rem',
+							fontSize: '0.72rem',
 							height: '20px',
 							lineHeight: '18px',
 							zIndex: 12,
@@ -790,11 +797,11 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 	}
 
 	return (
-		<Modal show={show} onHide={onHide} centered size={isDataAction && manifest?.schema ? 'lg' : 'md'}>
-			<Modal.Header closeButton>
-				<Modal.Title>{type === 'initialData' ? '⚙️ Edit Initial Graphic Data' : '✏️ Edit Timeline Event'}</Modal.Title>
+		<Modal show={show} onHide={onHide} centered size={isDataAction && manifest?.schema ? 'lg' : 'md'} dialogClassName="custom-dark-modal">
+			<Modal.Header closeButton className="modal-header-custom">
+				<Modal.Title className="modal-title-custom">{type === 'initialData' ? '⚙️ Edit Initial Graphic Data' : '✏️ Edit Timeline Event'}</Modal.Title>
 			</Modal.Header>
-			<Modal.Body>
+			<Modal.Body className="modal-body-custom">
 				<Form>
 					<Form.Group className="mb-3">
 						<Form.Label>Timestamp (ms)</Form.Label>
@@ -899,7 +906,7 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 								{type === 'initialData' ? 'Initial Data Schema' : 'Update Data Schema'}
 							</Form.Label>
 							{manifest?.schema ? (
-								<div className="border p-2 rounded bg-light">
+								<div className="border border-secondary-subtle p-3 rounded bg-dark bg-opacity-50 graphics-manifest-schema">
 									<OGrafForm schema={manifest.schema} data={updateData} setData={setUpdateData} />
 								</div>
 							) : (
@@ -921,7 +928,7 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 					)}
 				</Form>
 			</Modal.Body>
-			<Modal.Footer>
+			<Modal.Footer className="modal-footer-custom">
 				<Button variant="secondary" onClick={onHide}>
 					Cancel
 				</Button>

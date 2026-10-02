@@ -69,6 +69,82 @@ function startServer(port, devMode) {
     res.send("Cache cleared");
   });
 
+  // Serve bundled sample graphics:
+  const samplesDir = path.resolve(__dirname, "ograf-samples");
+  app.use("/samples", express.static(samplesDir));
+
+  // OGraf Server API endpoints for sample pack:
+  app.get(["/api/samples", "/api/samples/graphics"], (_req, res) => {
+    try {
+      if (!fs.existsSync(samplesDir)) {
+        return res.json({
+          name: "OGraf Sample Pack",
+          author: { name: "SuperFly.tv", url: "https://superfly.tv" },
+          graphics: [],
+        });
+      }
+      const entries = fs.readdirSync(samplesDir, { withFileTypes: true });
+      const graphicDirs = entries
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name);
+      res.json({
+        name: "OGraf Sample Pack",
+        author: { name: "SuperFly.tv", url: "https://superfly.tv" },
+        graphics: graphicDirs,
+      });
+    } catch (err) {
+      console.error("Error listing samples:", err);
+      res.status(500).json({ error: "Failed to list samples" });
+    }
+  });
+
+  app.get("/api/samples/graphics/:id", (req, res) => {
+    try {
+      const graphicId = req.params.id;
+      const targetDir = path.join(samplesDir, graphicId);
+      if (!fs.existsSync(targetDir)) {
+        return res.status(404).json({ error: "Graphic not found" });
+      }
+      const files = fs.readdirSync(targetDir);
+      const manifestFile = files.find((f) => f.endsWith(".ograf.json"));
+      if (!manifestFile) {
+        return res.status(404).json({ error: "Manifest file not found" });
+      }
+      const manifestContent = JSON.parse(
+        fs.readFileSync(path.join(targetDir, manifestFile), "utf8"),
+      );
+
+      const fileList = [];
+      function collectFiles(dir, relPrefix = "") {
+        for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (item.isDirectory()) {
+            collectFiles(
+              path.join(dir, item.name),
+              `${relPrefix}${item.name}/`,
+            );
+          } else {
+            fileList.push({ path: `${relPrefix}${item.name}` });
+          }
+        }
+      }
+      collectFiles(targetDir);
+
+      res.json({
+        id: graphicId,
+        graphic: manifestContent,
+        metadata: {
+          content: {
+            url: `/samples/${graphicId}/`,
+            files: fileList,
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Error reading graphic sample:", err);
+      res.status(500).json({ error: "Failed to read graphic sample" });
+    }
+  });
+
   // "Sign in with GitHub" OAuth, used by the client to raise the GitHub API rate limit.
   // Requires the OGRAF_DEVTOOL_APP_ID / OGRAF_DEVTOOL_APP_SECRET env vars to be set (of a GitHub OAuth App).
   app.get("/api/github/oauth/config", (req, res) => {

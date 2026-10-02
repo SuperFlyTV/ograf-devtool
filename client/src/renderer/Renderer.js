@@ -20,9 +20,14 @@ export class Renderer {
 	/** Instantiate a Graphic on a RenderTarget. Returns when the load has finished. */
 	async loadGraphic(settings, data) {
 		if (data !== undefined) this.data = data
-		if (this.graphicState.includes('pre')) throw new Error('loadGraphic called too quick')
+		if (this.graphicState === 'pre-load') {
+			// Already in the process of loading, wait or return
+			return
+		}
 
-		const graphicPath = ResourceProvider.graphicPath(this.graphic.folderPath, this.graphic.manifest.main)
+		const mainFile = this.graphic?.manifest?.main || this.graphic?.main || 'graphic.mjs'
+		const folderPath = this.graphic?.folderPath || this.graphic?.path || ''
+		const graphicPath = ResourceProvider.graphicPath(folderPath, mainFile)
 
 		try {
 			this.graphicState = 'pre-load'
@@ -38,7 +43,6 @@ export class Renderer {
 	}
 	/** Clear/unloads a GraphicInstance on a RenderTarget */
 	async clearGraphic() {
-		if (this.graphicState.includes('pre')) throw new Error('clearGraphic called too quick')
 		try {
 			this.graphicState = 'pre-clear'
 			this.clearGraphicStartTime = Date.now()
@@ -63,6 +67,22 @@ export class Renderer {
 	async stopAction(params) {
 		if (!params.skipAnimation) delete params.skipAnimation
 		return this.layer.stopAction(params)
+	}
+
+	/** Generic dispatcher for graphic actions */
+	async invokeGraphicAction(type, params = {}) {
+		console.log(`Invoking graphic action: ${type}`, params, new Error().stack)
+		if (type === 'updateAction') {
+			return this.updateAction(params)
+		} else if (type === 'playAction') {
+			return this.playAction(params)
+		} else if (type === 'stopAction') {
+			return this.stopAction(params)
+		} else if (type === 'customAction') {
+			return this.customAction(params.id, params.payload)
+		} else if (this[type] && typeof this[type] === 'function') {
+			return this[type](params)
+		}
 	}
 
 	/** Invokes an action on a graphicInstance. Actions are defined by the Graphic's manifest */

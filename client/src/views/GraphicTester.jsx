@@ -10,11 +10,14 @@ import { GraphicSettings } from '../components/GraphicSettings.jsx'
 import { GraphicIssues } from '../components/GraphicIssues.jsx'
 import { GraphicControlRealTime } from '../components/GraphicControlRealTime.jsx'
 import { GraphicControlNonRealTime } from '../components/GraphicControlNonRealTime.jsx'
+import { GraphicModeSelector } from '../components/GraphicModeSelector.jsx'
 import { GraphicCapabilities } from '../components/GraphicCapabilities.jsx'
 import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
 import { VideoExportModal } from '../components/VideoExportModal.jsx'
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
 import { getDefaultDataFromSchema } from 'ograf-form'
+
+import { TopBanner } from '../components/common/TopBanner.jsx'
 
 import backgroundFootball from '../../assets/backgrounds/football.jpg'
 import backgroundFireworks from '../../assets/backgrounds/fireworks.jpg'
@@ -49,40 +52,51 @@ function storeBackground(background) {
 	}
 }
 
-export function GraphicTester({ graphicsList }) {
+export function GraphicTester({ graphicsList, graphicsFolderName, graphicsSource, onCloseFolder }) {
+	const navigate = useNavigate()
 	const params = useParams()
 	let graphicId = params['*']
 	if (graphicId) graphicId = `/${graphicId}`
 
-	const graphic = React.useMemo(
-		() => {
-			if (!graphicId) return null
+	const graphic = React.useMemo(() => {
+		if (!graphicId) return null
 
-			return graphicsList.find((g) => g.path === graphicId)
-		},
-		graphicsList,
-		graphicId
-	)
+		return graphicsList?.find((g) => g.path === graphicId)
+	}, [graphicsList, graphicId])
 
 	if (!graphic) {
 		return (
-			<>
-				<div>
-					<p>No Graphic found for path: {graphicId}</p>
+			<div className="workspace-page-wrapper graphic-tester-page">
+				<TopBanner
+					folderName={graphicsFolderName}
+					graphicsSource={graphicsSource}
+					onBack={() => navigate('/')}
+					backLabel="Back to list"
+					breadcrumbs={[{ label: 'Graphics', to: '/' }, { label: 'Not Found' }]}
+				/>
+				<div className="p-4 text-center">
+					<p className="text-danger">No Graphic found for path: {graphicId}</p>
 					<p>
 						<Link to="/">
-							<Button>👈Go back</Button>
+							<Button variant="outline-light">👈 Back to list</Button>
 						</Link>
 					</p>
 				</div>
-			</>
+			</div>
 		)
 	} else {
-		return <GraphicTesterInner graphic={graphic} />
+		return (
+			<GraphicTesterInner
+				graphic={graphic}
+				graphicsFolderName={graphicsFolderName}
+				graphicsSource={graphicsSource}
+				onCloseFolder={onCloseFolder}
+			/>
+		)
 	}
 }
-function GraphicTesterInner({ graphic }) {
-	// let navigate = useNavigate()
+function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
+	const navigate = useNavigate()
 
 	const [settings, setSettings] = React.useState(getDefaultSettings())
 
@@ -100,18 +114,90 @@ function GraphicTesterInner({ graphic }) {
 
 	const canvasRef = React.useRef(null)
 	const rendererRef = React.useRef(null)
+	const layoutContainerRef = React.useRef(null)
+
+	// User-controlled sidebar width with localStorage persistence (defaults to 50% of window width)
+	const SIDEBAR_WIDTH_STORAGE_KEY = 'graphicTester.sidebarWidth'
+	const [sidebarWidth, setSidebarWidth] = React.useState(() => {
+		try {
+			const saved = localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY)
+			const parsed = saved ? parseInt(saved, 10) : null
+			if (parsed && !Number.isNaN(parsed) && parsed >= 340 && parsed <= 1600) {
+				return parsed
+			}
+		} catch (_e) {
+			// ignore
+		}
+		if (typeof window !== 'undefined' && window.innerWidth) {
+			return Math.max(360, Math.round(window.innerWidth * 0.5))
+		}
+		return 600
+	})
+
+	const [isDraggingSplitter, setIsDraggingSplitter] = React.useState(false)
+
+	const handleSplitterPointerDown = React.useCallback(
+		(e) => {
+			e.preventDefault()
+			setIsDraggingSplitter(true)
+
+			const startX = e.clientX
+			const startWidth = sidebarWidth
+
+			const onPointerMove = (moveEvent) => {
+				const deltaX = moveEvent.clientX - startX
+				const containerRect = layoutContainerRef.current?.getBoundingClientRect()
+				const maxAllowed = containerRect ? containerRect.width - 380 : window.innerWidth - 450
+				const newWidth = Math.max(340, Math.min(Math.round(startWidth + deltaX), Math.max(400, maxAllowed)))
+				setSidebarWidth(newWidth)
+			}
+
+			const onPointerUp = (upEvent) => {
+				setIsDraggingSplitter(false)
+				window.removeEventListener('pointermove', onPointerMove)
+				window.removeEventListener('pointerup', onPointerUp)
+
+				const deltaX = upEvent.clientX - startX
+				const containerRect = layoutContainerRef.current?.getBoundingClientRect()
+				const maxAllowed = containerRect ? containerRect.width - 380 : window.innerWidth - 450
+				const finalWidth = Math.max(340, Math.min(Math.round(startWidth + deltaX), Math.max(400, maxAllowed)))
+
+				try {
+					localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(finalWidth))
+				} catch (_e) {
+					// ignore
+				}
+			}
+
+			window.addEventListener('pointermove', onPointerMove)
+			window.addEventListener('pointerup', onPointerUp)
+		},
+		[sidebarWidth]
+	)
 
 	const updateScale = React.useCallback(() => {
 		if (previewContainerRef.current) {
 			const containerWidth = previewContainerRef.current.clientWidth
-			const widthScale = containerWidth / settings.width
+			const widthScale = containerWidth / (settings.width || 1920)
 
 			const containerHeight = previewContainerRef.current.clientHeight
-			const heightScale = containerHeight / settings.height
+			const heightScale = containerHeight / (settings.height || 1080)
 
-			setScale(heightScale < widthScale ? heightScale : widthScale)
+			const targetScale =
+				heightScale > 0 && widthScale > 0 ? Math.min(widthScale, heightScale) : widthScale > 0 ? widthScale : 1
+			setScale(targetScale)
 		}
-	}, [settings])
+	}, [settings.width, settings.height])
+
+	React.useEffect(() => {
+		if (!previewContainerRef.current) return
+		const observer = new ResizeObserver(() => {
+			updateScale()
+		})
+		observer.observe(previewContainerRef.current)
+		updateScale()
+		return () => observer.disconnect()
+	}, [updateScale])
 
 	const onError = React.useCallback((e) => {
 		setErrorMessage(`${e.message || e}`)
@@ -148,8 +234,10 @@ function GraphicTesterInner({ graphic }) {
 	}, [updateScale])
 
 	React.useEffect(() => {
-		rendererRef.current.setGraphic(graphic)
-	}, [graphic])
+		if (rendererRef.current && graphic) {
+			rendererRef.current.setGraphic({ ...graphic, manifest: graphicManifest || graphic.manifest })
+		}
+	}, [graphic, graphicManifest])
 
 	React.useEffect(() => {
 		const listener = fileHandler.listenToFileChanges(() => {
@@ -175,10 +263,7 @@ function GraphicTesterInner({ graphic }) {
 	}, [])
 
 	const settingsRef = React.useRef(settings)
-	React.useEffect(() => {
-		settingsRef.current = settings
-		triggerReloadGraphic()
-	}, [settings])
+	settingsRef.current = settings
 
 	const [isReloading, setIsReloading] = React.useState(false)
 	React.useEffect(() => {
@@ -189,7 +274,7 @@ function GraphicTesterInner({ graphic }) {
 	}, [isReloading])
 
 	const reloadGraphicManifest = React.useCallback(async () => {
-		const url = graphicResourcePath(graphic.path)
+		const url = graphicResourcePath(graphic.manifestUrl || graphic.path)
 		const r = await fetch(url)
 		const manifest = await r.json()
 		setGraphicManifest((prevValue) => {
@@ -198,12 +283,16 @@ function GraphicTesterInner({ graphic }) {
 			} else return prevValue
 		})
 		return manifest
-	}, [graphic.path])
+	}, [graphic.path, graphic.manifestUrl])
 
 	const reloadGraphic = React.useCallback(async () => {
 		await rendererRef.current.clearGraphic()
 		issueTracker.clear()
 		const manifest = await reloadGraphicManifest()
+
+		if (rendererRef.current) {
+			rendererRef.current.setGraphic({ ...graphic, manifest })
+		}
 
 		// Extract initialData from scheduleRef or manifest schema
 		const initialEv = scheduleRef.current.find(
@@ -219,7 +308,7 @@ function GraphicTesterInner({ graphic }) {
 		await rendererRef.current.loadGraphic(settingsRef.current, initialData).catch(issueTracker.addError)
 
 		setIsReloading(true)
-	}, [reloadGraphicManifest])
+	}, [graphic, reloadGraphicManifest])
 
 	const triggerReloadGraphicRef = React.useRef({})
 	const triggerReloadGraphic = React.useCallback(() => {
@@ -232,21 +321,21 @@ function GraphicTesterInner({ graphic }) {
 		reloadGraphic()
 			.then(async () => {
 				if (settingsRef.current.realtime) {
-					let i = 0
-					const actionsToRun = scheduleRef.current.filter((item) => item.action?.type !== 'initialData')
-					for (const action of actionsToRun) {
-						i++
-						// If auto-reload is disabled, just execute all actions in 100ms intervals:
-						const delay = triggerReloadGraphicRef.current.autoReloadEnable ? action.timestamp : i * 100
+					// let i = 0
+					// const actionsToRun = scheduleRef.current.filter((item) => item.action?.type !== 'initialData')
+					// for (const action of actionsToRun) {
+					// 	i++
+					// 	// If auto-reload is disabled, just execute all actions in 100ms intervals:
+					// 	const delay = triggerReloadGraphicRef.current.autoReloadEnable ? action.timestamp : i * 100
 
-						setTimeout(() => {
-							// if (!triggerReloadGraphicRef.current.activeAutoReload) return
-
-							rendererRef.current
-								.invokeGraphicAction(action.action.type, action.action.params)
-								.catch(issueTracker.addError)
-						}, delay)
-					}
+					// 	setTimeout(() => {
+					// 		const actionType = action.action?.type || (action.invokeAction ? 'customAction' : null)
+					// 		const actionParams = action.action?.params || action.invokeAction || {}
+					// 		if (actionType && rendererRef.current) {
+					// 			rendererRef.current.invokeGraphicAction(actionType, actionParams).catch(issueTracker.addError)
+					// 		}
+					// 	}, delay)
+					// }
 					if (triggerReloadGraphicRef.current.activeAutoReload) {
 						triggerReloadGraphicRef.current.reloadInterval = setTimeout(() => {
 							triggerReloadGraphicRef.current.reloadInterval = 0
@@ -262,7 +351,50 @@ function GraphicTesterInner({ graphic }) {
 				}
 			})
 			.catch(onError)
-	}, [])
+	}, [reloadGraphic, onError])
+
+	const isMountedRef = React.useRef(false)
+	const prevReloadSettingsRef = React.useRef({
+		realtime: settings.realtime,
+		width: settings.width,
+		height: settings.height,
+		duration: settings.duration,
+		quantizeFps: settings.quantizeFps,
+	})
+
+	React.useEffect(() => {
+		if (!isMountedRef.current) {
+			isMountedRef.current = true
+			triggerReloadGraphic()
+			return
+		}
+
+		const prev = prevReloadSettingsRef.current
+		const changed =
+			prev.realtime !== settings.realtime ||
+			prev.width !== settings.width ||
+			prev.height !== settings.height ||
+			prev.duration !== settings.duration ||
+			prev.quantizeFps !== settings.quantizeFps
+
+		if (changed) {
+			prevReloadSettingsRef.current = {
+				realtime: settings.realtime,
+				width: settings.width,
+				height: settings.height,
+				duration: settings.duration,
+				quantizeFps: settings.quantizeFps,
+			}
+			triggerReloadGraphic()
+		}
+	}, [
+		settings.realtime,
+		settings.width,
+		settings.height,
+		settings.duration,
+		settings.quantizeFps,
+		triggerReloadGraphic,
+	])
 
 	React.useEffect(() => {
 		triggerReloadGraphicRef.current.autoReloadEnable = settings.autoReloadEnable
@@ -282,7 +414,7 @@ function GraphicTesterInner({ graphic }) {
 		} else {
 			triggerReloadGraphicRef.current.activeAutoReload = false
 		}
-	}, [settings])
+	}, [settings.autoReloadEnable, settings.duration, triggerReloadGraphic])
 
 	const playTimeRef = React.useRef(0)
 	const [, setPlayTimeState] = React.useState(0)
@@ -298,29 +430,29 @@ function GraphicTesterInner({ graphic }) {
 		await rendererRef.current.gotoTime(playTimeRef.current).catch(issueTracker.addError)
 	}, [])
 
-function getScheduleStorageKeys(graphic, graphicManifest) {
-	return [
-		graphic?.path ? `ograf.timeline.${graphic.path}` : null,
-		graphicManifest?.id ? `ograf.timeline.${graphicManifest.id}` : null,
-		graphic?.id ? `ograf.timeline.${graphic.id}` : null,
-	].filter(Boolean)
-}
-
-function loadStoredSchedule(graphic, graphicManifest) {
-	const keys = getScheduleStorageKeys(graphic, graphicManifest)
-	for (const key of keys) {
-		try {
-			const saved = localStorage.getItem(key)
-			if (saved) {
-				const parsed = JSON.parse(saved)
-				if (Array.isArray(parsed) && parsed.length > 0) return parsed
-			}
-		} catch (_err) {
-			// ignore
-		}
+	function getScheduleStorageKeys(graphic, graphicManifest) {
+		return [
+			graphic?.path ? `ograf.timeline.${graphic.path}` : null,
+			graphicManifest?.id ? `ograf.timeline.${graphicManifest.id}` : null,
+			graphic?.id ? `ograf.timeline.${graphic.id}` : null,
+		].filter(Boolean)
 	}
-	return []
-}
+
+	function loadStoredSchedule(graphic, graphicManifest) {
+		const keys = getScheduleStorageKeys(graphic, graphicManifest)
+		for (const key of keys) {
+			try {
+				const saved = localStorage.getItem(key)
+				if (saved) {
+					const parsed = JSON.parse(saved)
+					if (Array.isArray(parsed) && parsed.length > 0) return parsed
+				}
+			} catch (_err) {
+				// ignore
+			}
+		}
+		return []
+	}
 
 	const scheduleRef = React.useRef([])
 	const [schedule, setSchedule] = React.useState(() => {
@@ -335,7 +467,7 @@ function loadStoredSchedule(graphic, graphicManifest) {
 		if (stored.length > 0) {
 			scheduleRef.current = stored
 			setSchedule(stored)
-			if (!settings.realtime && rendererRef.current) {
+			if (!settingsRef.current.realtime && rendererRef.current) {
 				rendererRef.current.setActionsSchedule(stored).catch(issueTracker.addError)
 			}
 		}
@@ -360,51 +492,83 @@ function loadStoredSchedule(graphic, graphicManifest) {
 				}
 			}
 
-			if (settings.realtime) {
-				if (!settings.autoReloadEnable) {
+			if (settingsRef.current.realtime) {
+				if (!settingsRef.current.autoReloadEnable) {
 					triggerReloadGraphic()
 				}
 			} else {
-				rendererRef.current.setActionsSchedule(cloned).catch(issueTracker.addError)
+				rendererRef.current?.setActionsSchedule(cloned).catch(issueTracker.addError)
 			}
 		},
-		[settings, graphic, graphicManifest]
+		[graphic, graphicManifest, triggerReloadGraphic]
 	)
 	const sendSetActionsSchedule = React.useCallback(async () => {
-		if (settings.realtime) {
+		if (settingsRef.current.realtime) {
 			// nothing?
 		} else {
-			await rendererRef.current.setActionsSchedule(scheduleRef.current).catch(issueTracker.addError)
+			await rendererRef.current?.setActionsSchedule(scheduleRef.current).catch(issueTracker.addError)
 		}
-	}, [settings])
+	}, [])
 
 	// Load the graphic manifest:
 	React.useEffect(() => {
 		if (!graphicManifest) reloadGraphicManifest().catch(onError)
 	}, [])
-	// console.log('isReloading', isReloading)
+	// Auto-select supported mode if the manifest only supports one
+	React.useEffect(() => {
+		if (!graphicManifest) return
+		const supportsRealTime = Boolean(graphicManifest.supportsRealTime)
+		const supportsNonRealTime = Boolean(graphicManifest.supportsNonRealTime)
+
+		if (supportsRealTime && !supportsNonRealTime && !settings.realtime) {
+			onSettingsChange({ ...settings, realtime: true })
+		} else if (!supportsRealTime && supportsNonRealTime && settings.realtime) {
+			onSettingsChange({ ...settings, realtime: false })
+		}
+	}, [graphicManifest, settings.realtime, onSettingsChange])
 
 	const [background, setBackground] = React.useState(cacheBackground)
 	const [showExportModal, setShowExportModal] = React.useState(false)
 
 	return (
 		<SettingsContext.Provider value={{ settings, onChange: onSettingsChange }}>
-			<div className="full-wrap">
-				<div className="container-md sidebar">
-					<div className="graphic-tester card">
-						<div className="card-body">
-							<div>
-								<Link to="/">
-									<Button>👈Go back</Button>
-								</Link>
+			<div className="workspace-page-wrapper graphic-tester-page">
+				<TopBanner
+					folderName={graphicsFolderName}
+					graphicsSource={graphicsSource}
+					onBack={() => navigate('/')}
+					backLabel="Back to list"
+					breadcrumbs={[
+						{ label: 'Graphics', to: '/' },
+						{ label: graphic?.manifest?.name || graphic?.path?.replace(/^\//, '') || 'Graphic Tester' },
+					]}
+				/>
+
+				<div
+					ref={layoutContainerRef}
+					className={`graphic-tester-content-layout ${isDraggingSplitter ? 'is-resizing' : ''}`}
+				>
+					{/* Left Sidebar */}
+					<div className="graphic-tester-sidebar" style={{ width: `${sidebarWidth}px`, flex: `0 0 ${sidebarWidth}px` }}>
+						<div className="tester-sidebar-card">
+							<div className="mode-selector-top">
+								<GraphicModeSelector
+									manifest={graphicManifest}
+									isRealtime={settings.realtime}
+									onChangeMode={(isRt) => onSettingsChange({ ...settings, realtime: isRt })}
+								/>
 							</div>
 
 							<div className="settings">
 								<GraphicSettings />
 							</div>
+
 							{graphicManifest ? (
 								<>
-									<div className="capabilities">{<GraphicCapabilities manifest={graphicManifest} />}</div>
+									<div className="capabilities">
+										<GraphicCapabilities manifest={graphicManifest} />
+									</div>
+
 									<div className="control">
 										{settings.realtime ? (
 											<GraphicControlRealTime
@@ -425,54 +589,71 @@ function loadStoredSchedule(graphic, graphicManifest) {
 												playTimeRef={playTimeRef}
 											/>
 										)}
-										<div>
-											{schedule.length ? (
-												<Button onClick={() => setActionsSchedule([])}>Clear scheduled actions</Button>
-											) : null}
-										</div>
-									</div>
-									<div className="issues">
-										<div className="card">
-											{!isReloading ? <GraphicIssues manifest={graphicManifest} graphic={graphic} /> : null}
 
+										{!settings.realtime && schedule.length ? (
 											<div>
-												{errors.length ? (
-													<div className="alert alert-danger" role="alert">
-														Graphic Errors:
-														<ul>
-															{errors.map((issue, index) => (
-																<li key={index}>{issue}</li>
-															))}
-														</ul>
-													</div>
-												) : null}
+												<Button
+													variant="outline-secondary"
+													size="sm"
+													className="mt-2 w-100"
+													onClick={() => setActionsSchedule([])}
+												>
+													Clear scheduled actions ({schedule.length})
+												</Button>
 											</div>
-											<div>
-												{warnings.length ? (
-													<div className="alert alert-info" role="alert">
-														Graphic Warnings:
-														<ul>
-															{warnings.map((issue, index) => (
-																<li key={index}>{issue}</li>
-															))}
-														</ul>
-													</div>
-												) : null}
+										) : null}
+									</div>
+
+									<div className="issues">
+										{!isReloading ? (
+											<div className="issues-card">
+												<GraphicIssues manifest={graphicManifest} graphic={graphic} />
 											</div>
-										</div>
+										) : null}
+
+										{errors.length ? (
+											<div className="alert alert-danger mt-2" role="alert">
+												Graphic Errors:
+												<ul className="mb-0 ps-3">
+													{errors.map((issue, index) => (
+														<li key={index}>{issue}</li>
+													))}
+												</ul>
+											</div>
+										) : null}
+
+										{warnings.length ? (
+											<div className="alert alert-warning mt-2" role="alert">
+												Graphic Warnings:
+												<ul className="mb-0 ps-3">
+													{warnings.map((issue, index) => (
+														<li key={index}>{issue}</li>
+													))}
+												</ul>
+											</div>
+										) : null}
 									</div>
 								</>
 							) : (
-								<div>Loading manifest...</div>
+								<div className="text-muted p-3 text-center">Loading manifest...</div>
 							)}
 						</div>
 					</div>
-				</div>
-				<div className="container-fluid">
-					<div className="graphic-tester-render card">
-						<div className="card-body">
+
+					{/* Draggable Centerline Splitter */}
+					<div
+						className={`graphic-tester-splitter ${isDraggingSplitter ? 'dragging' : ''}`}
+						onPointerDown={handleSplitterPointerDown}
+						title="Drag to resize the renderer"
+					>
+						<div className="splitter-handle"></div>
+					</div>
+
+					{/* Right Main Render & Canvas Area */}
+					<div className="graphic-tester-main">
+						<div className="tester-preview-card">
 							{!settings.realtime && (
-								<div>
+								<div className="mb-3">
 									<GraphicTimeline
 										rendererRef={rendererRef}
 										schedule={schedule}
@@ -484,74 +665,79 @@ function loadStoredSchedule(graphic, graphicManifest) {
 									/>
 								</div>
 							)}
-							<div>
-								{errorMessage && (
-									<div className="alert alert-danger" role="alert">
-										Error: {errorMessage}
-									</div>
-								)}
-							</div>
 
-							<div className="">
-								<div className="graphic-canvas-wrapper">
+							{errorMessage && (
+								<div className="alert alert-danger" role="alert">
+									Error: {errorMessage}
+								</div>
+							)}
+
+							<div
+								className="graphic-canvas-wrapper"
+								style={{
+									aspectRatio: `${settings.width || 1920} / ${settings.height || 1080}`,
+								}}
+							>
+								<div
+									ref={previewContainerRef}
+									style={{
+										width: '100%',
+										height: '100%',
+										position: 'absolute',
+										top: 0,
+										left: 0,
+										overflow: 'hidden',
+									}}
+								>
 									<div
-										ref={previewContainerRef}
 										style={{
-											width: '100%',
-											position: 'absolute',
-											aspectRatio: `${settings.width}/${settings.height}`,
-											overflow: 'hidden',
-											transition: '0.2s all ease-out',
-											height: '100%',
+											transform: `scale(${scale})`,
+											transformOrigin: 'top left',
+											width: settings.width || 1920,
+											height: settings.height || 1080,
 										}}
 									>
 										<div
+											ref={canvasRef}
+											className={
+												'graphic-canvas' + (background?.type && background.type !== 'none' ? '' : ' checkered-bg')
+											}
 											style={{
-												transform: `scale(${scale})`,
-												transformOrigin: 'top left',
-												width: settings.width,
-												height: settings.height,
+												position: 'relative',
+												display: 'block',
+												width: settings.width || 1920,
+												height: settings.height || 1080,
+												border: 'none',
 											}}
-										>
-											<div
-												ref={canvasRef}
-												className={
-													'graphic-canvas' + (background?.type && background.type !== 'none' ? '' : ' checkered-bg')
-												}
-												style={{
-													position: 'relative',
-													display: 'block',
-													border: 'none',
-												}}
-											></div>
-											{background?.type === 'color' && background.value === 'white' ? (
-												<div className="background-image" style={{ backgroundColor: 'white' }}></div>
-											) : background?.type === 'color' && background.value === 'black' ? (
-												<div className="background-image" style={{ backgroundColor: 'black' }}></div>
-											) : background?.type === 'webcam' ? (
-												<WebcamBackground deviceId={background.deviceId} />
-											) : background?.type === 'asset' ? (
-												<img className="background-image" src={background.src}></img>
-											) : background?.type === 'local-file' && background.blob ? (
-												<img className="background-image" src={URL.createObjectURL(background.blob)}></img>
-											) : null}
-										</div>
+										></div>
+										{background?.type === 'color' && background.value === 'white' ? (
+											<div className="background-image" style={{ backgroundColor: 'white' }}></div>
+										) : background?.type === 'color' && background.value === 'black' ? (
+											<div className="background-image" style={{ backgroundColor: 'black' }}></div>
+										) : background?.type === 'webcam' ? (
+											<WebcamBackground deviceId={background.deviceId} />
+										) : background?.type === 'asset' ? (
+											<img className="background-image" src={background.src} alt="background"></img>
+										) : background?.type === 'local-file' && background.blob ? (
+											<img
+												className="background-image"
+												src={URL.createObjectURL(background.blob)}
+												alt="background"
+											></img>
+										) : null}
 									</div>
 								</div>
 							</div>
-						</div>
-						<div className="graphic-tester-render-options">
-							<div className="card">
-								<div className="card-body">
-									<GraphicTesterOptions
-										background={background}
-										setBackground={(bg) => {
-											cacheBackground = bg
-											storeBackground(bg)
-											setBackground(bg)
-										}}
-									/>
-								</div>
+
+							<div className="graphic-tester-render-options mt-3">
+								<GraphicTesterOptions
+									background={background}
+									setBackground={(bg) => {
+										cacheBackground = bg
+										storeBackground(bg)
+										setBackground(bg)
+									}}
+								/>
 							</div>
 						</div>
 					</div>

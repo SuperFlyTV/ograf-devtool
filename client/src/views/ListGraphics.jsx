@@ -1,54 +1,34 @@
 import * as React from 'react'
-import { Table, Button, OverlayTrigger, Tooltip, Badge } from 'react-bootstrap'
-import { Link } from 'react-router'
-import { GraphicIssues } from '../components/GraphicIssues'
+import { Table, Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { TopBanner } from '../components/common/TopBanner.jsx'
+import { CapabilityBadge } from '../components/common/CapabilityBadge.jsx'
+import { ThumbnailPreview } from '../components/common/ThumbnailPreview.jsx'
+import { RetryImage } from '../components/common/RetryImage.jsx'
+import { IssueBadgeList, getGraphicIssueCounts } from '../components/common/IssueBadgeList.jsx'
+import {
+	ThumbnailGeneratorSection,
+	loadPersistedSettings,
+	SETTINGS_STORAGE_KEY,
+	hasNoThumbnails,
+	graphicHasResolution,
+	isGraphicMissingConfiguredResolutions,
+} from '../components/ThumbnailGeneratorSection.jsx'
+import { fileHandler } from '../FileHandler.js'
+import { generateThumbnailsForGraphic } from '../lib/ThumbnailGenerator.js'
 import { graphicResourcePath } from '../lib/lib.js'
-
-function getBestThumbnail(thumbnails) {
-	if (!Array.isArray(thumbnails) || thumbnails.length === 0) return null
-
-	const items = thumbnails
-		.map((t) => {
-			const file = typeof t === 'string' ? t : t?.file
-			if (!file) return null
-
-			const isCropped = file.includes('-cropped')
-			let width = typeof t === 'object' ? t?.resolution?.width : undefined
-			let height = typeof t === 'object' ? t?.resolution?.height : undefined
-
-			if (!width || !height) {
-				const match = file.match(/(\d+)x(\d+)/)
-				if (match) {
-					width = parseInt(match[1], 10)
-					height = parseInt(match[2], 10)
-				}
-			}
-
-			return {
-				raw: t,
-				file,
-				isCropped,
-				width: width || 0,
-				height: height || 0,
-				pixels: (width || 0) * (height || 0),
-			}
-		})
-		.filter(Boolean)
-
-	if (items.length === 0) return null
-
-	items.sort((a, b) => {
-		if (a.isCropped !== b.isCropped) {
-			return a.isCropped ? 1 : -1
-		}
-		if (a.pixels !== b.pixels) {
-			return b.pixels - a.pixels
-		}
-		return 0
-	})
-
-	return items[0]
-}
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+	faArrowsRotate,
+	faList,
+	faTableCellsLarge,
+	faImages,
+	faMagnifyingGlass,
+	faXmark,
+	faCheck,
+	faRotateRight,
+	faTriangleExclamation,
+} from '@fortawesome/free-solid-svg-icons'
 
 function formatLastModified(timestamp) {
 	if (!timestamp) return '—'
@@ -63,10 +43,385 @@ function formatLastModified(timestamp) {
 	})
 }
 
-export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName, graphicsSource }) {
-	const [sortField, setSortField] = React.useState('path')
-	const [sortDirection, setSortDirection] = React.useState('asc')
+function StatusBadge({ status }) {
+	if (!status || status.status === 'idle') {
+		return <span className="badge bg-secondary status-badge-item">Idle</span>
+	}
+	switch (status.status) {
+		case 'pending':
+			return <span className="badge bg-info status-badge-item">Pending…</span>
+		case 'skipped':
+			return (
+				<span className="badge bg-secondary status-badge-item" title={status.message}>
+					Skipped
+				</span>
+			)
+		case 'running':
+			return (
+				<span className="badge bg-primary status-badge-item" title={status.message}>
+					<span className="spinner-border spinner-border-sm me-1" role="status" />
+					{status.message || 'Running…'}
+				</span>
+			)
+		case 'done':
+			return (
+				<span className="badge bg-success status-badge-item" title={status.message}>
+					<FontAwesomeIcon icon={faCheck} className="me-1" />
+					Done
+				</span>
+			)
+		case 'error':
+			return (
+				<span className="badge bg-danger status-badge-item" title={status.message}>
+					<FontAwesomeIcon icon={faTriangleExclamation} className="me-1" />
+					Error
+				</span>
+			)
+		default:
+			return null
+	}
+}
 
+function GenerateButton({ graphic, resolutions, onGenerate, isRunning }) {
+	if (!graphic.manifest) {
+		return (
+			<Button size="sm" variant="outline-secondary" disabled title="Cannot generate: manifest has errors">
+				Generate
+			</Button>
+		)
+	}
+
+	const allExist = (resolutions ?? []).length > 0 && (resolutions ?? []).every((r) => graphicHasResolution(graphic, r))
+
+	return (
+		<Button
+			size="sm"
+			variant={allExist ? 'outline-warning' : 'outline-success'}
+			className="btn-row-generate"
+			onClick={() => onGenerate(allExist)}
+			disabled={isRunning}
+			title={
+				allExist
+					? 'All configured resolutions exist in manifest — force regenerate'
+					: 'Generate thumbnails for this graphic'
+			}
+		>
+			<FontAwesomeIcon icon={allExist ? faRotateRight : faImages} className="me-1" />
+			{allExist ? 'Regen' : 'Generate'}
+		</Button>
+	)
+}
+
+const VIEW_MODE_STORAGE_KEY = 'ograf-graphics-view-mode'
+
+function loadPersistedViewMode() {
+	try {
+		const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY)
+		if (saved === 'grid' || saved === 'table') {
+			return saved
+		}
+	} catch (_) {}
+	return 'table'
+}
+
+export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName, graphicsSource = 'local' }) {
+	const navigate = useNavigate()
+	const [searchParams, setSearchParams] = useSearchParams()
+
+	const isGeneratorOpen = searchParams.get('generator') === 'true'
+
+	const [viewMode, setViewModeState] = React.useState(loadPersistedViewMode)
+
+	const setViewMode = React.useCallback((mode) => {
+		setViewModeState(mode)
+		try {
+			localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode)
+		} catch (_) {}
+	}, [])
+
+	const [searchQuery, setSearchQuery] = React.useState('')
+	const [sortField, setSortField] = React.useState('name')
+	const [sortDirection, setSortDirection] = React.useState('asc')
+	const [allIssuesExpanded, setAllIssuesExpanded] = React.useState(false)
+	const [isRefreshing, setIsRefreshing] = React.useState(false)
+
+	// ─── Thumbnail Generator State ─────────────────────────────────────────────
+	const [settings, setSettings] = React.useState(loadPersistedSettings)
+	const onSettingsChange = React.useCallback((newSettings) => {
+		setSettings(newSettings)
+		try {
+			localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings))
+		} catch (_) {}
+	}, [])
+
+	const [statuses, setStatuses] = React.useState(() =>
+		Object.fromEntries((graphicsList ?? []).map((g) => [g.path, { status: 'idle', message: '' }]))
+	)
+
+	// Per-graphic preview version to bust cache when generated
+	const [previewVersions, setPreviewVersions] = React.useState(() =>
+		Object.fromEntries((graphicsList ?? []).map((g) => [g.path, 0]))
+	)
+
+	const bumpPreviewVersion = React.useCallback((path) => {
+		setPreviewVersions((prev) => ({ ...prev, [path]: (prev[path] ?? 0) + 1 }))
+	}, [])
+
+	const setGraphicStatus = React.useCallback((path, update) => {
+		setStatuses((prev) => ({ ...prev, [path]: { ...prev[path], ...update } }))
+	}, [])
+
+	const [isRunning, setIsRunning] = React.useState(false)
+	const [batchProgress, setBatchProgress] = React.useState(null)
+	const abortRef = React.useRef(false)
+	const [globalLog, setGlobalLog] = React.useState([])
+
+	const appendLog = React.useCallback((msg) => {
+		setGlobalLog((prev) => [...prev.slice(-299), msg])
+	}, [])
+
+	const handleClearLog = React.useCallback(() => {
+		setGlobalLog([])
+	}, [])
+
+	// ─── Core Generation Runner ───────────────────────────────────────────────
+	const runGeneration = React.useCallback(
+		async (graphicsToProcess, force = false) => {
+			if (isRunning || !graphicsToProcess?.length) return
+			setIsRunning(true)
+			abortRef.current = false
+
+			const total = graphicsToProcess.length
+			let processed = 0
+			let done = 0
+			let errors = 0
+			setBatchProgress({ total, processed: 0, doneCount: 0, errorCount: 0 })
+
+			try {
+				for (const graphic of graphicsToProcess) {
+					if (abortRef.current) {
+						appendLog('🛑 Generation cancelled by user.')
+						break
+					}
+
+					if (!graphic.manifest) {
+						setGraphicStatus(graphic.path, { status: 'error', message: 'No valid manifest' })
+						errors++
+						processed++
+						setBatchProgress({ total, processed, doneCount: done, errorCount: errors })
+						continue
+					}
+
+					// Skip if all configured resolutions already have entries in the manifest (and not forcing)
+					if (!force && !settings.forceRegenerate && graphic.manifest.thumbnails?.length) {
+						const allExist = settings.resolutions.every((r) => graphicHasResolution(graphic, r))
+						if (allExist) {
+							setGraphicStatus(graphic.path, {
+								status: 'skipped',
+								message: 'All configured resolutions already exist in manifest',
+							})
+							appendLog(
+								`Skipped "${
+									graphic.manifest.name || graphic.path
+								}" — all configured resolutions already exist in manifest`
+							)
+							done++
+							processed++
+							setBatchProgress({ total, processed, doneCount: done, errorCount: errors })
+							continue
+						}
+					}
+
+					setGraphicStatus(graphic.path, { status: 'running', message: 'Starting…' })
+					appendLog(`Generating thumbnails for "${graphic.manifest.name || graphic.path}"…`)
+
+					try {
+						const newThumbnails = await generateThumbnailsForGraphic({
+							graphic,
+							thumbnailSettings: settings,
+							onProgress: (msg) => {
+								setGraphicStatus(graphic.path, { status: 'running', message: msg })
+								appendLog(`  ${msg}`)
+							},
+							writeFileFn: async (path, blob) => {
+								await fileHandler.writeFile(path, blob)
+							},
+						})
+
+						if (abortRef.current) {
+							appendLog('🛑 Generation cancelled.')
+							break
+						}
+
+						// Merge new entries into manifest, replacing any entries for files matching newly generated ones
+						const keptThumbnails = (graphic.manifest.thumbnails ?? []).filter(
+							(existing) =>
+								!newThumbnails.some((n) => n.file === (typeof existing === 'string' ? existing : existing.file))
+						)
+						const updatedManifest = {
+							...graphic.manifest,
+							thumbnails: [...keptThumbnails, ...newThumbnails],
+						}
+						await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+						graphic.manifest = updatedManifest
+
+						setGraphicStatus(graphic.path, {
+							status: 'done',
+							message: `Generated ${newThumbnails.length} thumbnail(s)`,
+						})
+						bumpPreviewVersion(graphic.path)
+						appendLog(`✓ "${graphic.manifest.name || graphic.path}" — ${newThumbnails.length} thumbnail(s) written`)
+
+						done++
+						processed++
+						setBatchProgress({ total, processed, doneCount: done, errorCount: errors })
+					} catch (err) {
+						console.error(err)
+						setGraphicStatus(graphic.path, { status: 'error', message: err.message })
+						appendLog(`✗ Error for "${graphic.manifest?.name ?? graphic.path}": ${err.message}`)
+
+						errors++
+						processed++
+						setBatchProgress({ total, processed, doneCount: done, errorCount: errors })
+					}
+				}
+			} catch (err) {
+				console.error(err)
+				appendLog(`Session error: ${err.message}`)
+			} finally {
+				setIsRunning(false)
+				abortRef.current = false
+				appendLog('Done.')
+				if (onRefresh) {
+					try {
+						await onRefresh()
+					} catch (_) {}
+				}
+			}
+		},
+		[isRunning, settings, setGraphicStatus, bumpPreviewVersion, appendLog, onRefresh]
+	)
+
+	const handleGenerateAll = React.useCallback(() => {
+		runGeneration(graphicsList ?? [], false)
+	}, [runGeneration, graphicsList])
+
+	const handleGenerateWithoutThumbnails = React.useCallback(() => {
+		if (!graphicsList) return
+		const noThumbGraphics = graphicsList.filter((g) => hasNoThumbnails(g))
+		runGeneration(noThumbGraphics, false)
+	}, [runGeneration, graphicsList])
+
+	const handleGenerateMissingResolutions = React.useCallback(() => {
+		if (!graphicsList) return
+		const missingResGraphics = graphicsList.filter((g) =>
+			isGraphicMissingConfiguredResolutions(g, settings.resolutions)
+		)
+		runGeneration(missingResGraphics, false)
+	}, [runGeneration, graphicsList, settings.resolutions])
+
+	const handleCancelGeneration = React.useCallback(() => {
+		abortRef.current = true
+		appendLog('Cancelling generation…')
+	}, [appendLog])
+
+	const handleGenerateOne = React.useCallback(
+		(graphic, force = false) => runGeneration([graphic], force),
+		[runGeneration]
+	)
+
+	const handleDeleteThumbnail = React.useCallback(
+		async (graphic, thumbnail) => {
+			if (isRunning) return
+			const file = typeof thumbnail === 'string' ? thumbnail : thumbnail.file
+			const filePath = graphic.folderPath + file
+			try {
+				await fileHandler.deleteFile(filePath)
+			} catch (err) {
+				console.error('Failed to delete thumbnail file:', err)
+			}
+			// Remove entry from manifest
+			const updatedManifest = {
+				...graphic.manifest,
+				thumbnails: (graphic.manifest?.thumbnails ?? []).filter((t) => {
+					const tf = typeof t === 'string' ? t : t.file
+					return tf !== file
+				}),
+			}
+			await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+			graphic.manifest = updatedManifest
+			bumpPreviewVersion(graphic.path)
+			appendLog(`Deleted thumbnail "${file}" for "${graphic.manifest?.name || graphic.path}"`)
+
+			if (onRefresh) {
+				try {
+					await onRefresh()
+				} catch (_) {}
+			}
+		},
+		[isRunning, bumpPreviewVersion, appendLog, onRefresh]
+	)
+
+	const handleDeleteAllThumbnails = React.useCallback(async () => {
+		if (isRunning || !graphicsList?.length) return
+		setIsRunning(true)
+		appendLog('Deleting all thumbnails across graphics…')
+		try {
+			for (const graphic of graphicsList) {
+				if (!graphic.manifest?.thumbnails?.length) continue
+				for (const t of graphic.manifest.thumbnails) {
+					const file = typeof t === 'string' ? t : t.file
+					try {
+						await fileHandler.deleteFile(graphic.folderPath + file)
+					} catch (err) {
+						console.error('Failed to delete file:', err)
+					}
+				}
+				const updatedManifest = {
+					...graphic.manifest,
+					thumbnails: [],
+				}
+				await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+				graphic.manifest = updatedManifest
+				bumpPreviewVersion(graphic.path)
+			}
+			appendLog('✓ All thumbnails deleted successfully.')
+		} catch (err) {
+			console.error('Failed to delete all thumbnails:', err)
+			appendLog(`✗ Error during delete all: ${err.message}`)
+		} finally {
+			setIsRunning(false)
+			if (onRefresh) {
+				try {
+					await onRefresh()
+				} catch (_) {}
+			}
+		}
+	}, [isRunning, graphicsList, bumpPreviewVersion, appendLog, onRefresh])
+
+	const toggleGenerator = React.useCallback(() => {
+		const next = new URLSearchParams(searchParams)
+		if (isGeneratorOpen) {
+			next.delete('generator')
+		} else {
+			next.set('generator', 'true')
+		}
+		setSearchParams(next, { replace: true })
+	}, [isGeneratorOpen, searchParams, setSearchParams])
+
+	const handleRefresh = React.useCallback(async () => {
+		if (!onRefresh) return
+		setIsRefreshing(true)
+		try {
+			await onRefresh()
+		} finally {
+			setIsRefreshing(false)
+		}
+	}, [onRefresh])
+
+	const isRemote = graphicsSource === 'remote'
+
+	// Sort handler
 	const handleSort = (field) => {
 		if (sortField === field) {
 			setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
@@ -76,17 +431,31 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 		}
 	}
 
-	const sortedGraphics = React.useMemo(() => {
+	// Filter graphics by search query (name, path, id)
+	const filteredGraphics = React.useMemo(() => {
 		if (!graphicsList) return []
-		const list = [...graphicsList]
+		const q = searchQuery.trim().toLowerCase()
+		if (!q) return graphicsList
+
+		return graphicsList.filter((g) => {
+			const name = (g.manifest?.name || '').toLowerCase()
+			const path = (g.path || '').toLowerCase()
+			const id = (g.manifest?.id || '').toLowerCase()
+			return name.includes(q) || path.includes(q) || id.includes(q)
+		})
+	}, [graphicsList, searchQuery])
+
+	// Sort filtered graphics
+	const sortedGraphics = React.useMemo(() => {
+		const list = [...filteredGraphics]
 
 		list.sort((a, b) => {
 			let aVal, bVal
 
 			switch (sortField) {
 				case 'name':
-					aVal = (a.manifest?.name || '').toLowerCase()
-					bVal = (b.manifest?.name || '').toLowerCase()
+					aVal = (a.manifest?.name || a.path || '').toLowerCase()
+					bVal = (b.manifest?.name || b.path || '').toLowerCase()
 					break
 				case 'lastModified':
 					aVal = a.lastModified || 0
@@ -111,196 +480,478 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 		})
 
 		return list
-	}, [graphicsList, sortField, sortDirection])
+	}, [filteredGraphics, sortField, sortDirection])
 
-	const renderSortHeader = (field, label) => {
+	// Calculate graphics with issues count to decide if "Expand all issues" button is shown
+	const graphicsWithIssuesCount = React.useMemo(() => {
+		if (!graphicsList) return 0
+		return graphicsList.filter((g) => getGraphicIssueCounts(g).hasIssues).length
+	}, [graphicsList])
+
+	const renderSortHeader = (field, label, className = '') => {
 		const isActive = sortField === field
 		return (
-			<th
-				onClick={() => handleSort(field)}
-				style={{ cursor: 'pointer', userSelect: 'none' }}
-				title={`Click to sort by ${label}`}
-			>
-				<div className="d-flex align-items-center justify-content-between gap-1">
-					<span>{label}</span>
-					<small className="text-muted" style={{ fontSize: '0.75rem' }}>
-						{isActive ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
-					</small>
-				</div>
+			<th onClick={() => handleSort(field)} className={`sortable-th ${className}`} title={`Click to sort by ${label}`}>
+				<span>{label}</span>
+				<span className={`sort-indicator ${isActive ? 'active' : ''}`}>
+					{isActive ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+				</span>
 			</th>
 		)
 	}
 
+	const renderGenerateThumbnailButton = () => {
+		if (isRemote) {
+			return (
+				<OverlayTrigger
+					placement="top"
+					overlay={<Tooltip>Thumbnail generation is only available for local folders.</Tooltip>}
+				>
+					<span className="d-inline-block">
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled
+							className="toolbar-btn"
+							style={{ pointerEvents: 'none', opacity: 0.6 }}
+						>
+							<FontAwesomeIcon icon={faImages} /> Generate Thumbnails
+						</Button>
+					</span>
+				</OverlayTrigger>
+			)
+		}
+
+		return (
+			<Button
+				variant={isGeneratorOpen ? 'success' : 'outline-secondary'}
+				size="sm"
+				className={`toolbar-btn ${isGeneratorOpen ? 'generator-active-btn' : ''}`}
+				onClick={toggleGenerator}
+				title={isGeneratorOpen ? 'Hide thumbnail generator section' : 'Open thumbnail generator section'}
+			>
+				<FontAwesomeIcon icon={faImages} /> {isGeneratorOpen ? 'Close Generator' : 'Generate Thumbnails'}
+			</Button>
+		)
+	}
+
 	return (
-		<div className="container-lg">
-			<div className="list-graphics card">
-				<div>
-					<h2>
-						{graphicsSource === 'remote' ? 'Remote URL' : 'Local folder'} "{graphicsFolderName}"
-					</h2>
-					<Button
-						onClick={() => {
-							onRefresh()
-						}}
-					>
-						Refresh list
-					</Button>
-					<Button
-						onClick={() => {
-							onCloseFolder()
-						}}
-					>
-						Pick another folder
-					</Button>
-					<div className="float-end">
-						<Link to={`/thumbnails`}>
-							<Button>View All OGrafs</Button>
-						</Link>{' '}
-						{graphicsSource === 'remote' ? (
-							<OverlayTrigger
-								overlay={<Tooltip>Generating Thumbnails is only available in Local folder mode.</Tooltip>}
-							>
-								<span className="d-inline-block">
-									<Button variant="success" disabled style={{ pointerEvents: 'none' }}>
-										🖼️ Generate Thumbnails
-									</Button>
+		<div className="workspace-page-wrapper">
+			{/* Top Header with Breadcrumbs, Switch Folder & Source */}
+			<TopBanner folderName={graphicsFolderName} graphicsSource={graphicsSource} onCloseFolder={onCloseFolder} />
+
+			<main className="workspace-page-content list-graphics-view">
+				{/* Toolbar Card */}
+				<div className="list-toolbar-card">
+					<div className="list-toolbar">
+						{/* Left: Refresh List & Search Input */}
+						<div className="toolbar-left">
+							{onRefresh && (
+								<Button
+									variant="outline-secondary"
+									size="sm"
+									className="toolbar-btn"
+									onClick={handleRefresh}
+									disabled={isRefreshing}
+									title="Refresh graphics from disk / remote"
+								>
+									<FontAwesomeIcon icon={faArrowsRotate} spin={isRefreshing} />{' '}
+									{isRefreshing ? 'Refreshing…' : 'Refresh list'}
+								</Button>
+							)}
+
+							<div className="search-box-container">
+								<span className="search-icon">
+									<FontAwesomeIcon icon={faMagnifyingGlass} />
 								</span>
-							</OverlayTrigger>
-						) : (
-							<Link to={`/generate-thumbnails`}>
-								<Button variant="success">🖼️ Generate Thumbnails</Button>
-							</Link>
-						)}
+								<input
+									type="text"
+									className="search-input"
+									placeholder="Search graphics by name, path, id…"
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+								/>
+								{searchQuery && (
+									<button
+										type="button"
+										className="search-clear-btn"
+										onClick={() => setSearchQuery('')}
+										title="Clear search"
+									>
+										<FontAwesomeIcon icon={faXmark} />
+									</button>
+								)}
+							</div>
+
+							<span className="results-counter">
+								{searchQuery
+									? `${sortedGraphics.length} of ${graphicsList?.length || 0} graphics`
+									: `${graphicsList?.length || 0} ${graphicsList?.length === 1 ? 'graphic' : 'graphics'}`}
+							</span>
+						</div>
+
+						{/* Right Toolbar Actions */}
+						<div className="toolbar-right">
+							{renderGenerateThumbnailButton()}
+
+							{/* Expand/Collapse All Issues button (only present when >1 graphic has issues and not in thumbnail mode) */}
+							{!isGeneratorOpen && graphicsWithIssuesCount > 1 && (
+								<button
+									type="button"
+									className="expand-all-issues-btn"
+									onClick={() => setAllIssuesExpanded((prev) => !prev)}
+								>
+									<span>{allIssuesExpanded ? '▲ Collapse All Issues' : '▼ Expand All Issues'}</span>
+								</button>
+							)}
+
+							{/* View Mode Toggle: List vs Grid */}
+							<div className="view-mode-toggle" role="group" aria-label="View mode">
+								<button
+									type="button"
+									className={`view-mode-btn ${viewMode === 'table' ? 'active' : ''}`}
+									onClick={() => setViewMode('table')}
+									title="List / Table View"
+								>
+									<FontAwesomeIcon icon={faList} /> List
+								</button>
+								<button
+									type="button"
+									className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+									onClick={() => setViewMode('grid')}
+									title="Grid View"
+								>
+									<FontAwesomeIcon icon={faTableCellsLarge} /> Grid
+								</button>
+							</div>
+						</div>
 					</div>
 				</div>
 
-				{graphicsList.length > 0 ? (
-					<Table striped bordered className="align-middle">
-						<thead>
-							<tr>
-								{renderSortHeader('path', 'Manifest path')}
-								<th>Thumbnail</th>
-								{renderSortHeader('name', 'Name')}
-								{renderSortHeader('capabilities', 'Capabilities')}
-								{renderSortHeader('lastModified', 'Modified date')}
-								<th>Issues</th>
-								<th></th>
-							</tr>
-						</thead>
-						<tbody>
-							{sortedGraphics.map((graphic, i) => {
-								const bestThumbnail = getBestThumbnail(graphic.manifest?.thumbnails)
-								const hasId = !!graphic.manifest?.id
+				{/* ── Collapsible Thumbnail Generator Section ── */}
+				{isGeneratorOpen && !isRemote && (
+					<ThumbnailGeneratorSection
+						graphicsList={graphicsList}
+						settings={settings}
+						onSettingsChange={onSettingsChange}
+						isRunning={isRunning}
+						statuses={statuses}
+						batchProgress={batchProgress}
+						previewVersions={previewVersions}
+						globalLog={globalLog}
+						onClearLog={handleClearLog}
+						onGenerateAll={handleGenerateAll}
+						onGenerateWithoutThumbnails={handleGenerateWithoutThumbnails}
+						onGenerateMissingResolutions={handleGenerateMissingResolutions}
+						onCancelGeneration={handleCancelGeneration}
+						onDeleteAllThumbnails={handleDeleteAllThumbnails}
+						onClose={toggleGenerator}
+					/>
+				)}
+
+				{/* Graphics List Contents */}
+				{sortedGraphics.length > 0 ? (
+					viewMode === 'table' ? (
+						/* --- Table View --- */
+						<div className="graphics-table-card">
+							<div className="table-responsive">
+								<Table hover className="graphics-dark-table align-middle">
+									<thead>
+										<tr>
+											{isGeneratorOpen ? (
+												<th style={{ minWidth: '220px' }}>Generated Thumbnails</th>
+											) : (
+												<th style={{ width: '100px' }}>Thumbnail</th>
+											)}
+											{renderSortHeader('name', 'Name')}
+											{renderSortHeader('path', 'Manifest Path')}
+											{!isGeneratorOpen && renderSortHeader('capabilities', 'Capabilities')}
+											{!isGeneratorOpen && renderSortHeader('lastModified', 'Modified Date')}
+											{!isGeneratorOpen && <th style={{ minWidth: '160px' }}>Validation & Issues</th>}
+											{isGeneratorOpen && <th style={{ width: '120px' }}>Status</th>}
+											<th style={{ width: isGeneratorOpen ? '160px' : '90px' }}>Actions</th>
+										</tr>
+									</thead>
+									<tbody>
+										{sortedGraphics.map((graphic, i) => {
+											const hasId = !!graphic.manifest?.id
+											const hasVersion = !!graphic.manifest?.version
+											const tooltipText =
+												hasId || hasVersion ? (
+													<Tooltip id={`tooltip-id-${i}`}>
+														{hasId && (
+															<div>
+																<strong>ID:</strong> {graphic.manifest.id}
+															</div>
+														)}
+														{hasVersion && (
+															<div>
+																<strong>Version:</strong> {graphic.manifest.version}
+															</div>
+														)}
+													</Tooltip>
+												) : null
+
+											const status = statuses[graphic.path] ?? { status: 'idle', message: '' }
+											const existingThumbs = graphic.manifest?.thumbnails ?? []
+
+											return (
+												<tr key={graphic.path} className={status.status === 'running' ? 'row-running-highlight' : ''}>
+													{/* Thumbnail Column */}
+													{isGeneratorOpen ? (
+														<td className="thumbnail-mode-thumbs-cell">
+															{existingThumbs.length > 0 ? (
+																<div className="thumbnail-mode-gallery">
+																	{existingThumbs.map((t, idx) => {
+																		const file = typeof t === 'string' ? t : t.file
+																		const isCropped = typeof file === 'string' && file.includes('-cropped')
+																		const filePath = graphic.folderPath + file
+																		const src =
+																			graphicResourcePath(filePath) + `?v=${previewVersions[graphic.path] || 0}`
+																		const resLabel =
+																			typeof t === 'object' && t?.resolution
+																				? `${t.resolution.width}×${t.resolution.height}`
+																				: typeof file === 'string'
+																				? file.replace('thumbnails/', '')
+																				: 'thumb'
+
+																		return (
+																			<div key={idx} className="thumb-item-chip">
+																				<a
+																					href={src}
+																					target="_blank"
+																					rel="noreferrer"
+																					title={`Open ${file} in new tab`}
+																				>
+																					<RetryImage src={src} alt={resLabel} className="thumb-item-img" />
+																				</a>
+																				<div className="thumb-item-footer">
+																					<span className="thumb-item-label" title={file}>
+																						{resLabel} {isCropped ? '(crop)' : ''}
+																					</span>
+																					<button
+																						type="button"
+																						className="thumb-item-del-btn"
+																						onClick={() => handleDeleteThumbnail(graphic, t)}
+																						disabled={isRunning}
+																						title={`Delete ${file}`}
+																					>
+																						<FontAwesomeIcon icon={faXmark} />
+																					</button>
+																				</div>
+																			</div>
+																		)
+																	})}
+																</div>
+															) : (
+																<span className="no-thumbnails-label">No thumbnails</span>
+															)}
+														</td>
+													) : (
+														<td>
+															<ThumbnailPreview
+																graphic={graphic}
+																thumbnails={graphic.manifest?.thumbnails}
+																folderPath={graphic.folderPath}
+																alt={graphic.manifest?.name || graphic.path}
+																size="table"
+																graphicsSource={graphicsSource}
+																onRefresh={onRefresh}
+															/>
+														</td>
+													)}
+
+													{/* Name & ID */}
+													<td className="graphic-title-cell">
+														<div className="graphic-name">
+															{tooltipText ? (
+																<OverlayTrigger placement="top" overlay={tooltipText}>
+																	<span style={{ cursor: 'help' }}>{graphic.manifest?.name ?? graphic.path}</span>
+																</OverlayTrigger>
+															) : (
+																<span>{graphic.manifest?.name ?? graphic.path}</span>
+															)}
+														</div>
+														{(hasId || hasVersion) && (
+															<div className="graphic-meta-chips">
+																{hasId && <span className="meta-chip">id: {graphic.manifest.id}</span>}
+																{hasVersion && <span className="meta-chip">v{graphic.manifest.version}</span>}
+															</div>
+														)}
+													</td>
+
+													{/* Manifest Path */}
+													<td className="graphic-path-cell">
+														<code>{graphic.path}</code>
+													</td>
+
+													{/* Capabilities (Hidden in thumbnail mode) */}
+													{!isGeneratorOpen && (
+														<td>
+															<CapabilityBadge
+																supportsRealTime={graphic.manifest?.supportsRealTime}
+																supportsNonRealTime={graphic.manifest?.supportsNonRealTime}
+															/>
+														</td>
+													)}
+
+													{/* Modified Date (Hidden in thumbnail mode) */}
+													{!isGeneratorOpen && (
+														<td className="graphic-date-cell">{formatLastModified(graphic.lastModified)}</td>
+													)}
+
+													{/* Issues (Hidden in thumbnail mode) */}
+													{!isGeneratorOpen && (
+														<td>
+															<IssueBadgeList graphic={graphic} forceExpanded={allIssuesExpanded ? true : undefined} />
+														</td>
+													)}
+
+													{/* Status Badge (Shown in thumbnail mode) */}
+													{isGeneratorOpen && (
+														<td className="graphic-status-cell">
+															<StatusBadge status={status} />
+														</td>
+													)}
+
+													{/* Action Buttons */}
+													<td className="graphic-action-cell">
+														<div className="d-flex align-items-center gap-1 flex-wrap">
+															{isGeneratorOpen && (
+																<GenerateButton
+																	graphic={graphic}
+																	resolutions={settings.resolutions}
+																	onGenerate={(force) => handleGenerateOne(graphic, force)}
+																	isRunning={isRunning}
+																/>
+															)}
+															<Link to={`/graphic${graphic.path}`}>
+																<Button variant="primary" size="sm" className="action-btn">
+																	Select →
+																</Button>
+															</Link>
+														</div>
+													</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</Table>
+							</div>
+						</div>
+					) : (
+						/* --- Grid View --- */
+						<div className="graphics-cards-grid">
+							{sortedGraphics.map((graphic) => {
 								const hasVersion = !!graphic.manifest?.version
-								const tooltipText =
-									hasId || hasVersion ? (
-										<Tooltip id={`tooltip-id-${i}`}>
-											{hasId && (
-												<div>
-													<strong>ID:</strong> {graphic.manifest.id}
-												</div>
-											)}
-											{hasVersion && (
-												<div>
-													<strong>Version:</strong> {graphic.manifest.version}
-												</div>
-											)}
-										</Tooltip>
-									) : null
+								const status = statuses[graphic.path] ?? { status: 'idle', message: '' }
 
 								return (
-									<tr key={graphic.path}>
-										<td>{graphic.path}</td>
-										<td>
-											{bestThumbnail
-												? (() => {
-														const filePath = (graphic.folderPath || '') + bestThumbnail.file
-														const src = graphicResourcePath(filePath)
-														const label =
-															bestThumbnail.width && bestThumbnail.height
-																? `${bestThumbnail.width}×${bestThumbnail.height}`
-																: bestThumbnail.file
-														return (
-															<a
-																href={src}
-																target="_blank"
-																rel="noreferrer"
-																title={`Open ${bestThumbnail.file} in new tab`}
-															>
-																<img
-																	src={src}
-																	alt={label}
-																	style={{
-																		maxHeight: '48px',
-																		maxWidth: '90px',
-																		width: 'auto',
-																		height: 'auto',
-																		objectFit: 'contain',
-																		border: '1px solid #ccc',
-																		borderRadius: '3px',
-																		background: 'repeating-conic-gradient(#888 0% 25%, #555 0% 50%) 0 0 / 12px 12px',
-																		display: 'block',
-																	}}
-																/>
-															</a>
-														)
-												  })()
-												: null}
-										</td>
-										<td>
-											{tooltipText ? (
-												<OverlayTrigger placement="top" overlay={tooltipText}>
-													<span style={{ cursor: 'help', borderBottom: '1px dotted #666' }}>
-														{graphic.manifest?.name ?? `N/A`}
+									<div
+										key={graphic.path}
+										className={`graphic-grid-card ${status.status === 'running' ? 'card-running-highlight' : ''}`}
+										onClick={() => navigate(`/graphic${graphic.path}`)}
+									>
+										<div className="card-preview-section">
+											<ThumbnailPreview
+												graphic={graphic}
+												thumbnails={graphic.manifest?.thumbnails}
+												folderPath={graphic.folderPath}
+												alt={graphic.manifest?.name || graphic.path}
+												size="card"
+												disableHover={true}
+												graphicsSource={graphicsSource}
+												onRefresh={onRefresh}
+											/>
+										</div>
+
+										<div className="card-info-section">
+											<div className="card-title-row">
+												<h3 className="card-graphic-name" title={graphic.manifest?.name || graphic.path}>
+													{graphic.manifest?.name || graphic.path}
+												</h3>
+												{hasVersion && (
+													<span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>
+														v{graphic.manifest.version}
 													</span>
-												</OverlayTrigger>
-											) : (
-												graphic.manifest?.name ?? `N/A`
-											)}
-										</td>
-										<td>
-											<div className="d-flex flex-wrap gap-1 align-items-center">
-												{graphic.manifest?.supportsRealTime && <span title="Supports Real-Time rendering">🏃</span>}
-												{graphic.manifest?.supportsNonRealTime && (
-													<span title="Supports Non-Real-Time rendering">🎞</span>
-												)}
-												{!graphic.manifest?.supportsRealTime && !graphic.manifest?.supportsNonRealTime && (
-													<span className="text-muted small">—</span>
 												)}
 											</div>
-										</td>
-										<td style={{ whiteSpace: 'nowrap' }}>{formatLastModified(graphic.lastModified)}</td>
-										<td>
-											{graphic.manifestParseError ? (
-												<div className="alert alert-danger">
-													<div>Error in manifest file:</div>
-													<div>{graphic.manifestParseError.toString()}</div>
-												</div>
-											) : null}
-											{graphic.warnings?.map((warning, wi) => (
-												<div className="alert alert-warning" key={wi}>
-													{warning}
-												</div>
-											))}
-											<GraphicIssues manifest={graphic.manifest} graphic={graphic} />
-										</td>
-										<td>
-											<Link to={`/graphic${graphic.path}`}>
-												<Button>Select</Button>
-											</Link>
-										</td>
-									</tr>
+
+											<div className="card-path-code" title={graphic.path}>
+												{graphic.path}
+											</div>
+										</div>
+
+										{isGeneratorOpen ? (
+											<div className="card-generator-status-row">
+												<StatusBadge status={status} />
+											</div>
+										) : (
+											<div className="card-meta-row">
+												<CapabilityBadge
+													supportsRealTime={graphic.manifest?.supportsRealTime}
+													supportsNonRealTime={graphic.manifest?.supportsNonRealTime}
+												/>
+												<IssueBadgeList graphic={graphic} forceExpanded={allIssuesExpanded ? true : undefined} />
+											</div>
+										)}
+
+										<div className="card-footer-row">
+											<span className="card-date">🕒 {formatLastModified(graphic.lastModified)}</span>
+											<div className="d-flex gap-1 align-items-center">
+												{isGeneratorOpen && (
+													<div onClick={(e) => e.stopPropagation()}>
+														<GenerateButton
+															graphic={graphic}
+															resolutions={settings.resolutions}
+															onGenerate={(force) => handleGenerateOne(graphic, force)}
+															isRunning={isRunning}
+														/>
+													</div>
+												)}
+												<Button
+													variant="primary"
+													size="sm"
+													onClick={(e) => {
+														e.stopPropagation()
+														navigate(`/graphic${graphic.path}`)
+													}}
+												>
+													Select →
+												</Button>
+											</div>
+										</div>
+									</div>
 								)
 							})}
-						</tbody>
-					</Table>
+						</div>
+					)
 				) : (
-					<div>
-						<p>No graphics found in the selected folder (nor any of its subfolders).</p>
-						<p>Please reload the page to try again.</p>
+					/* --- Empty State --- */
+					<div className="graphics-empty-state">
+						<span className="empty-icon">{searchQuery ? '🔎' : '📂'}</span>
+						<h2 className="empty-title">
+							{searchQuery ? 'No matching graphics found' : 'No graphics found in folder'}
+						</h2>
+						<p className="empty-desc">
+							{searchQuery
+								? `No graphics match your query "${searchQuery}". Try searching with a different term.`
+								: `No *.ograf.json graphic files were found in the selected folder "${graphicsFolderName}".`}
+						</p>
+						<div className="empty-actions">
+							{searchQuery ? (
+								<Button variant="outline-secondary" size="sm" onClick={() => setSearchQuery('')}>
+									Clear Search Filter
+								</Button>
+							) : (
+								<Button variant="primary" size="sm" onClick={onCloseFolder}>
+									Pick Another Folder
+								</Button>
+							)}
+						</div>
 					</div>
 				)}
-			</div>
+			</main>
 		</div>
 	)
 }

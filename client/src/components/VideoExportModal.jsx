@@ -684,11 +684,18 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 	const effectiveBaseName = fileName.trim() || defaultBaseName
 
 	return (
-		<Modal show={show} onHide={isExporting ? handleCancel : onHide} backdrop="static" centered size="lg">
-			<Modal.Header closeButton={!isExporting}>
-				<Modal.Title>🎥 Export Timeline as Video</Modal.Title>
+		<Modal
+			show={show}
+			onHide={isExporting ? handleCancel : onHide}
+			backdrop="static"
+			centered
+			size="lg"
+			dialogClassName="custom-dark-modal video-export-dark-modal"
+		>
+			<Modal.Header closeButton={!isExporting} className="modal-header-custom">
+				<Modal.Title className="modal-title-custom">🎥 Export Timeline as Video</Modal.Title>
 			</Modal.Header>
-			<Modal.Body>
+			<Modal.Body className="modal-body-custom">
 				{errorText && <Alert variant="danger">{errorText}</Alert>}
 
 				{/* ── Render Method Banner / Notification ── */}
@@ -722,7 +729,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 
 				{/* ── Video Player / ZIP Preview after render ── */}
 				{renderedVideos && !isExporting && (
-					<div className="mb-4 border rounded p-3 bg-light">
+					<div className="mb-4 border border-secondary-subtle rounded p-3 bg-body-tertiary">
 						<h6 className="fw-bold mb-3">
 							{renderedVideos.isZip ? '📦 Exported ZIP Preview' : '🎬 Exported Video Preview'}
 						</h6>
@@ -730,9 +737,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 						{renderedVideos.isZip ? (
 							<div>
 								<div className="fw-semibold small mb-1">PNG Sequence Preview (Frame 1):</div>
-								<div className="d-flex justify-content-center align-items-center p-2 border rounded bg-white">
+								<div className="d-flex justify-content-center align-items-center p-2 border border-secondary-subtle rounded bg-dark bg-opacity-75">
 									<div
-										className="checkered-bg border rounded overflow-hidden shadow-sm"
+										className="checkered-bg border border-secondary-subtle rounded overflow-hidden shadow-sm"
 										style={{ display: 'inline-flex', maxWidth: '100%', lineHeight: 0 }}
 									>
 										{renderedVideos.previewUrl ? (
@@ -763,9 +770,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 							<Row>
 								<Col md={6} className="mb-3 mb-md-0">
 									<div className="fw-semibold small mb-1">Color Fill Video:</div>
-									<div className="d-flex justify-content-center align-items-center p-2 border rounded bg-white">
+									<div className="d-flex justify-content-center align-items-center p-2 border border-secondary-subtle rounded bg-dark bg-opacity-75">
 										<div
-											className="checkered-bg border rounded overflow-hidden shadow-sm"
+											className="checkered-bg border border-secondary-subtle rounded overflow-hidden shadow-sm"
 											style={{ display: 'inline-flex', maxWidth: '100%', lineHeight: 0 }}
 										>
 											<video
@@ -792,9 +799,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 								</Col>
 								<Col md={6}>
 									<div className="fw-semibold small mb-1">Transparency Clip:</div>
-									<div className="d-flex justify-content-center align-items-center p-2 border rounded bg-white">
+									<div className="d-flex justify-content-center align-items-center p-2 border border-secondary-subtle rounded bg-dark bg-opacity-75">
 										<div
-											className="border rounded overflow-hidden shadow-sm bg-black"
+											className="border border-secondary-subtle rounded overflow-hidden shadow-sm bg-black"
 											style={{ display: 'inline-flex', maxWidth: '100%', lineHeight: 0 }}
 										>
 											<video
@@ -823,9 +830,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 						) : (
 							<div>
 								<div className="fw-semibold small mb-1">Rendered Video:</div>
-								<div className="d-flex justify-content-center align-items-center p-2 border rounded bg-white">
+								<div className="d-flex justify-content-center align-items-center p-2 border border-secondary-subtle rounded bg-dark bg-opacity-75">
 									<div
-										className="checkered-bg border rounded overflow-hidden shadow-sm"
+										className="checkered-bg border border-secondary-subtle rounded overflow-hidden shadow-sm"
 										style={{ display: 'inline-flex', maxWidth: '100%', lineHeight: 0 }}
 									>
 										<video
@@ -1029,7 +1036,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					)}
 
 					{/* ── Background & Alpha Channel Options ── */}
-					<Form.Group className="mb-3 border rounded p-3 bg-white">
+					<Form.Group className="mb-3 border border-secondary-subtle rounded p-3 bg-body-tertiary">
 						<Form.Label className="fw-semibold d-block">
 							{formatHasAlpha ? 'Background & Transparency' : 'Alpha & Background Options (No Alpha in Codec)'}
 						</Form.Label>
@@ -1075,8 +1082,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 												width: '2.5rem',
 												height: '1.8rem',
 												padding: '0.1rem',
-												border: '1px solid #ccc',
+												border: '1px solid var(--app-border-color)',
 												borderRadius: '4px',
+												background: 'transparent',
 												cursor: 'pointer',
 											}}
 										/>
@@ -1116,8 +1124,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 													width: '2.5rem',
 													height: '1.8rem',
 													padding: '0.1rem',
-													border: '1px solid #ccc',
+													border: '1px solid var(--app-border-color)',
 													borderRadius: '4px',
+													background: 'transparent',
 													cursor: 'pointer',
 												}}
 											/>
@@ -1152,8 +1161,9 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 													width: '2.5rem',
 													height: '1.8rem',
 													padding: '0.1rem',
-													border: '1px solid #ccc',
+													border: '1px solid var(--app-border-color)',
 													borderRadius: '4px',
+													background: 'transparent',
 													cursor: 'pointer',
 												}}
 											/>
@@ -1167,10 +1177,10 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					{/* ── Summary info ── */}
 					<div className="text-muted small mb-3">
 						Output:{' '}
-						<strong>
+						<strong className="text-body-emphasis">
 							{renderWidth} × {renderHeight}
 						</strong>{' '}
-						px @ <strong>{fps} fps</strong> — Duration: <strong>{(duration / 1000).toFixed(2)}s</strong> (
+						px @ <strong className="text-body-emphasis">{fps} fps</strong> — Duration: <strong className="text-body-emphasis">{(duration / 1000).toFixed(2)}s</strong> (
 						{Math.ceil(duration / (1000 / (fps || 30))) + 1} frames)
 					</div>
 
@@ -1184,7 +1194,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 								value={fileName}
 								onChange={(e) => setFileName(e.target.value)}
 							/>
-							<InputGroup.Text>.{currentExt}</InputGroup.Text>
+							<InputGroup.Text className="bg-body-secondary text-body border-secondary-subtle">.{currentExt}</InputGroup.Text>
 						</InputGroup>
 						{!formatHasAlpha && bgMode === 'color-and-alpha-matte' && (
 							<Form.Text className="text-muted">
@@ -1204,7 +1214,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					</div>
 				)}
 			</Modal.Body>
-			<Modal.Footer>
+			<Modal.Footer className="modal-footer-custom">
 				<Button variant={isExporting ? 'danger' : 'secondary'} onClick={isExporting ? handleCancel : onHide}>
 					{isExporting ? '🛑 Cancel Render' : renderedVideos ? 'Close' : 'Cancel'}
 				</Button>

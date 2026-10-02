@@ -1,0 +1,65 @@
+{
+    "$schema": "https://ograf.ebu.io/v1/specification/json-schemas/graphics/schema.json",
+    "name": "Lower 3rd - Name",
+    "description": "Name lower third",
+    "id": "l3rd-name",
+    "main": "graphic.mjs",
+    "thumbnails": [
+        {
+            "file": "thumbnail.webp",
+            "resolution": {
+                "width": 1280,
+                "height": 720
+            }
+        }
+    ],
+    "version": "0",
+    "author": {
+        "name": "Johan Nyman, SuperFly.tv"
+    },
+    "customActions": [
+        {
+            "id": "highlight",
+            "name": "Highlight",
+            "description": "Highlight the name",
+            "schema": null
+        }
+    ],
+    "actionDurations": [
+        {
+            "type": "playAction",
+            "duration": 1500
+        },
+        {
+            "type": "updateAction",
+            "duration": 400
+        },
+        {
+            "type": "stopAction",
+            "duration": 1100
+        },
+        {
+            "type": "customAction",
+            "customActionId": "highlight",
+            "duration": 2800
+        }
+    ],
+    "supportsRealTime": true,
+    "supportsNonRealTime": true,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "title": "Name",
+                "default": "John Doe"
+            },
+            "title": {
+                "type": "string",
+                "title": "Title",
+                "default": "OGraf expert"
+            }
+        }
+    },
+    "v_myLittleNote": "Vendor-specific properties can be added using the 'v_' prefix, like this!"
+}

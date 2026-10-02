@@ -11,21 +11,29 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 	const settings = settingsContext.settings
 	const onChange = settingsContext.onChange
 
-	const initialData = manifest.schema ? getDefaultDataFromSchema(manifest.schema) : {}
+	const initialData = React.useMemo(() => {
+		return manifest?.schema ? getDefaultDataFromSchema(manifest.schema) : {}
+	}, [manifest?.schema])
+
 	const [data, setData] = React.useState(initialData)
 	const onDataSave = (d) => {
 		setData(JSON.parse(JSON.stringify(d)))
 	}
 
-	rendererRef.current.setData(data)
+	React.useEffect(() => {
+		if (rendererRef.current) {
+			rendererRef.current.setData(data)
+		}
+	}, [data, rendererRef])
 
 	const [skipAnimation, setSkipAnimation] = React.useState(false)
 	const [gotoStep, setGotoStep] = React.useState(1)
 	const [deltaStep, setDeltaStep] = React.useState(1)
 
-	const supportsRealTime = manifest.supportsRealTime
+	const supportsRealTime = manifest?.supportsRealTime
+
 	return (
-		<div>
+		<div className="graphic-control-panel">
 			<Accordion
 				defaultActiveKey={settings.viewControlAccordion}
 				alwaysOpen
@@ -34,94 +42,131 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 				}}
 			>
 				<Accordion.Item eventKey="0">
-					<Accordion.Header>Graphic Control</Accordion.Header>
-					<Accordion.Body>
+					<Accordion.Header>Graphic Control (Real-Time)</Accordion.Header>
+					<Accordion.Body className="p-3">
 						{supportsRealTime ? (
-							<>
-								<div>
-									<Button
-										onClick={() => {
-											issueTracker.clear()
-											rendererRef.current.loadGraphic(settings).catch(issueTracker.addError)
-										}}
-									>
-										Load Graphic
-									</Button>
-									<Button
-										onClick={() => {
-											rendererRef.current.clearGraphic().catch(issueTracker.addError)
-										}}
-									>
-										Clear Graphic
-									</Button>
-								</div>
-								<div>
-									<div className="graphics-manifest-schema">
-										{manifest.schema && <OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />}
+							<div className="control-sections-wrapper d-flex flex-column gap-3">
+								{/* Lifecycle Controls */}
+								<div className="control-section-card p-2 rounded">
+									<div className="d-flex flex-wrap gap-2">
+										<Button
+											variant="primary"
+											className="px-3 fw-semibold"
+											onClick={async () => {
+												issueTracker.clear()
+												try {
+													await rendererRef.current?.clearGraphic()
+													if (manifest && rendererRef.current?.graphic) {
+														rendererRef.current.setGraphic({ ...rendererRef.current.graphic, manifest })
+													}
+													rendererRef.current?.setData(data)
+													await rendererRef.current?.loadGraphic(settings, data)
+												} catch (err) {
+													issueTracker.addError(err)
+												}
+											}}
+										>
+											Load Graphic
+										</Button>
+										<Button
+											variant="outline-danger"
+											className="px-3"
+											onClick={() => {
+												issueTracker.clear()
+												rendererRef.current?.clearGraphic().catch(issueTracker.addError)
+											}}
+										>
+											Clear Graphic
+										</Button>
 									</div>
 								</div>
-								<div>
-									<Form.Check
-										type="switch"
-										label="skipAnimation"
-										onChange={(e) => setSkipAnimation(e.target.checked)}
-										checked={skipAnimation}
-									/>
-								</div>
-								<div>
-									<ButtonGroup>
-										<Button
-											onClick={() => {
-												issueTracker.clear()
-												rendererRef.current.updateAction({ data }).catch(issueTracker.addError)
-											}}
-										>
-											Update
-										</Button>
-										<Button
-											onClick={() => {
-												issueTracker.clear()
-												rendererRef.current
-													.playAction({
-														skipAnimation,
-													})
-													.catch(issueTracker.addError)
-											}}
-										>
-											Play
-										</Button>
-										<Button
-											onClick={() => {
-												issueTracker.clear()
-												rendererRef.current
-													.stopAction({
-														skipAnimation,
-													})
-													.catch(issueTracker.addError)
-											}}
-										>
-											Stop
-										</Button>
-									</ButtonGroup>
-								</div>
 
-								<div>
-									<ButtonToolbar aria-label="Toolbar with button groups">
-										<InputGroup className="me-2">
+								{/* Data Schema Form */}
+								{manifest.schema && (
+									<div className="control-section-card rounded p-3">
+										<div className="d-flex justify-content-between align-items-center mb-2">
+											<h6 className="section-card-title mb-0">Parameters / Schema Data</h6>
+										</div>
+										<div className="graphics-manifest-schema m-0">
+											<OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />
+										</div>
+									</div>
+								)}
+
+								{/* Live Action Triggers */}
+								<div className="control-section-card rounded p-3">
+									<div className="d-flex justify-content-between align-items-center mb-3">
+										<h6 className="section-card-title mb-0">OGraf Actions</h6>
+										<Form.Check
+											type="switch"
+											id="rt-skip-animation-switch"
+											label={<span className="fs-7 text-slate-300">skipAnimation</span>}
+											onChange={(e) => setSkipAnimation(e.target.checked)}
+											checked={skipAnimation}
+											className="mb-0"
+										/>
+									</div>
+
+									{/* Main Action Buttons */}
+									<div className="mb-3">
+										<ButtonGroup className="w-100">
+											<Button
+												variant="success"
+												className="fw-semibold"
+												onClick={() => {
+													issueTracker.clear()
+													rendererRef.current?.updateAction({ data }).catch(issueTracker.addError)
+												}}
+											>
+												Update
+											</Button>
+											<Button
+												variant="primary"
+												className="fw-semibold"
+												onClick={() => {
+													issueTracker.clear()
+													rendererRef.current
+														?.playAction({
+															skipAnimation,
+														})
+														.catch(issueTracker.addError)
+												}}
+											>
+												Play
+											</Button>
+											<Button
+												variant="danger"
+												className="fw-semibold"
+												onClick={() => {
+													issueTracker.clear()
+													rendererRef.current
+														?.stopAction({
+															skipAnimation,
+														})
+														.catch(issueTracker.addError)
+												}}
+											>
+												Stop
+											</Button>
+										</ButtonGroup>
+									</div>
+
+									{/* Step Navigation */}
+									<ButtonToolbar aria-label="Step navigation toolbar" className="d-flex gap-2">
+										<InputGroup size="sm" className="flex-grow-1">
 											<Form.Control
 												type="number"
 												placeholder="Step"
 												value={gotoStep}
 												onChange={(e) => setGotoStep(parseInt(e.target.value, 10) || 0)}
-												style={{
-													width: '4em',
-												}}
+												style={{ maxWidth: '4.5rem' }}
 											/>
 											<Button
+												variant="outline-primary"
 												onClick={() => {
 													issueTracker.clear()
 													rendererRef.current
-														.playAction({
+														?.playAction({
 															goto: gotoStep,
 															skipAnimation,
 														})
@@ -132,21 +177,20 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 											</Button>
 										</InputGroup>
 
-										<InputGroup className="me-2">
+										<InputGroup size="sm" className="flex-grow-1">
 											<Form.Control
 												type="number"
-												placeholder="Step"
+												placeholder="Delta"
 												value={deltaStep}
 												onChange={(e) => setDeltaStep(parseInt(e.target.value, 10) || 0)}
-												style={{
-													width: '4em',
-												}}
+												style={{ maxWidth: '4.5rem' }}
 											/>
 											<Button
+												variant="outline-primary"
 												onClick={() => {
 													issueTracker.clear()
 													rendererRef.current
-														.playAction({
+														?.playAction({
 															delta: deltaStep,
 															skipAnimation,
 														})
@@ -158,17 +202,24 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 										</InputGroup>
 									</ButtonToolbar>
 								</div>
-								<div>
-									<GraphicsActions
-										rendererRef={rendererRef}
-										schedule={schedule}
-										setActionsSchedule={setActionsSchedule}
-										manifest={manifest}
-									/>
-								</div>
-							</>
+
+								{/* Custom Actions */}
+								{manifest.customActions && Object.keys(manifest.customActions).length > 0 && (
+									<div className="control-section-card rounded p-3">
+										<h6 className="section-card-title mb-2">Custom Actions</h6>
+										<GraphicsActions
+											rendererRef={rendererRef}
+											schedule={schedule}
+											setActionsSchedule={setActionsSchedule}
+											manifest={manifest}
+										/>
+									</div>
+								)}
+							</div>
 						) : (
-							<div className="alert alert-warning">This graphic does not support real-time rendering.</div>
+							<div className="alert alert-warning mb-0" role="alert">
+								This graphic does not support real-time rendering.
+							</div>
 						)}
 					</Accordion.Body>
 				</Accordion.Item>
@@ -176,15 +227,15 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 		</div>
 	)
 }
+
 function GraphicsActions({ manifest, rendererRef, schedule, setActionsSchedule }) {
-	const customActionsList = Object.values(manifest.customActions || {})
+	const customActionsList = Object.values(manifest?.customActions || {})
 
 	if (customActionsList.length === 0) return null
 
 	return (
 		<>
-			<b>Custom Actions:</b>
-			<div className="graphics-actions">
+			<div className="graphics-actions flex-wrap mb-2">
 				{customActionsList.map((action) => {
 					return (
 						<GraphicAction
@@ -192,27 +243,26 @@ function GraphicsActions({ manifest, rendererRef, schedule, setActionsSchedule }
 							rendererRef={rendererRef}
 							action={action}
 							onAction={(actionId, data, e) => {
-								// Invoke action:
-								rendererRef.current.customAction(actionId, data).catch(issueTracker.addError)
-								if (e.shiftKey) {
-									// Add action to schedule, to run at next auto-reload:
-
-									schedule.push({
-										timestamp: Date.now() - rendererRef.current.loadGraphicEndTime,
+								issueTracker.clear()
+								rendererRef.current?.customAction(actionId, data).catch(issueTracker.addError)
+								if (e.shiftKey && schedule && setActionsSchedule) {
+									const newSchedule = [...schedule]
+									newSchedule.push({
+										timestamp: Date.now() - (rendererRef.current?.loadGraphicEndTime || 0),
 										invokeAction: {
 											id: actionId,
 											payload: JSON.parse(JSON.stringify(data)),
 										},
 									})
-									setActionsSchedule(schedule)
+									setActionsSchedule(newSchedule)
 								}
 							}}
 						/>
 					)
 				})}
 			</div>
-			<div>
-				<i>Tip: Shift-clicking actions will make them auto-trigger after file changed or Auto-reload.</i>
+			<div className="helper-tip-text fs-7">
+				<i>Tip: Shift-clicking custom actions will schedule them to trigger automatically on reload.</i>
 			</div>
 		</>
 	)
