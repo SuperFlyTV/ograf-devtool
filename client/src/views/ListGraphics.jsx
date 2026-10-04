@@ -6,6 +6,7 @@ import { CapabilityBadge } from '../components/common/CapabilityBadge.jsx'
 import { ThumbnailPreview } from '../components/common/ThumbnailPreview.jsx'
 import { RetryImage } from '../components/common/RetryImage.jsx'
 import { IssueBadgeList, getGraphicIssueCounts } from '../components/common/IssueBadgeList.jsx'
+import { GraphicIssues } from '../components/GraphicIssues.jsx'
 import {
 	ThumbnailGeneratorSection,
 	loadPersistedSettings,
@@ -172,6 +173,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 	const [sortField, setSortField] = React.useState('name')
 	const [sortDirection, setSortDirection] = React.useState('asc')
 	const [allIssuesExpanded, setAllIssuesExpanded] = React.useState(false)
+	const [expandedIssueRows, setExpandedIssueRows] = React.useState(new Set())
 	const [isRefreshing, setIsRefreshing] = React.useState(false)
 
 	// ─── Thumbnail Generator State ─────────────────────────────────────────────
@@ -721,149 +723,195 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 
 											const status = statuses[graphic.path] ?? { status: 'idle', message: '' }
 											const existingThumbs = graphic.manifest?.thumbnails ?? []
+											const isRowExpanded = allIssuesExpanded || expandedIssueRows.has(graphic.path)
 
 											return (
-												<tr key={graphic.path} className={status.status === 'running' ? 'row-running-highlight' : ''}>
-													{/* Thumbnail Column */}
-													{isGeneratorOpen ? (
-														<td className="thumbnail-mode-thumbs-cell">
-															{existingThumbs.length > 0 ? (
-																<div className="thumbnail-mode-gallery">
-																	{existingThumbs.map((t, idx) => {
-																		const file = typeof t === 'string' ? t : t.file
-																		const extMatch =
-																			typeof file === 'string' ? file.match(/\.([a-zA-Z0-9]+)(?:\?.*)?$/) : null
-																		const format = extMatch ? extMatch[1].toLowerCase() : ''
-																		const isAnimated = format === 'gif' || format === 'webp'
-																		const filePath = graphic.folderPath + file
-																		const src =
-																			graphicResourcePath(filePath) + `?v=${previewVersions[graphic.path] || 0}`
-																		const resLabel =
-																			typeof t === 'object' && t?.resolution?.width && t?.resolution?.height
-																				? `${t.resolution.width}×${t.resolution.height}`
-																				: file
+												<React.Fragment key={graphic.path}>
+													<tr className={status.status === 'running' ? 'row-running-highlight' : ''}>
+														{/* Thumbnail Column */}
+														{isGeneratorOpen ? (
+															<td className="thumbnail-mode-thumbs-cell">
+																{existingThumbs.length > 0 ? (
+																	<div className="thumbnail-mode-gallery">
+																		{existingThumbs.map((t, idx) => {
+																			const file = typeof t === 'string' ? t : t.file
+																			const extMatch =
+																				typeof file === 'string' ? file.match(/\.([a-zA-Z0-9]+)(?:\?.*)?$/) : null
+																			const format = extMatch ? extMatch[1].toLowerCase() : ''
+																			const isAnimated = format === 'gif' || format === 'webp'
+																			const filePath = graphic.folderPath + file
+																			const src =
+																				graphicResourcePath(filePath) + `?v=${previewVersions[graphic.path] || 0}`
+																			const resLabel =
+																				typeof t === 'object' && t?.resolution?.width && t?.resolution?.height
+																					? `${t.resolution.width}×${t.resolution.height}`
+																					: file
 
-																		return (
-																			<div
-																				key={idx}
-																				className={`thumb-item-chip ${isAnimated ? 'thumb-item-animated' : ''}`}
-																			>
-																				<a
-																					href={src}
-																					target="_blank"
-																					rel="noreferrer"
-																					title={`Open ${file} in new tab`}
+																			return (
+																				<div
+																					key={idx}
+																					className={`thumb-item-chip ${isAnimated ? 'thumb-item-animated' : ''}`}
 																				>
-																					<RetryImage src={src} alt={resLabel} className="thumb-item-img" />
-																				</a>
-																				<div className="thumb-item-footer">
-																					<span className="thumb-item-label" title={file}>
-																						{resLabel} {format ? `(${format.toUpperCase()})` : ''}
-																					</span>
-																					<button
-																						type="button"
-																						className="thumb-item-del-btn"
-																						onClick={() => handleDeleteThumbnail(graphic, t)}
-																						disabled={isRunning}
-																						title={`Delete ${file}`}
+																					<a
+																						href={src}
+																						target="_blank"
+																						rel="noreferrer"
+																						title={`Open ${file} in new tab`}
 																					>
-																						<FontAwesomeIcon icon={faXmark} />
-																					</button>
+																						<RetryImage src={src} alt={resLabel} className="thumb-item-img" />
+																					</a>
+																					<div className="thumb-item-footer">
+																						<span className="thumb-item-label" title={file}>
+																							{resLabel} {format ? `(${format.toUpperCase()})` : ''}
+																						</span>
+																						<button
+																							type="button"
+																							className="thumb-item-del-btn"
+																							onClick={() => handleDeleteThumbnail(graphic, t)}
+																							disabled={isRunning}
+																							title={`Delete ${file}`}
+																						>
+																							<FontAwesomeIcon icon={faXmark} />
+																						</button>
+																					</div>
 																				</div>
-																			</div>
-																		)
-																	})}
-																</div>
-															) : (
-																<span className="no-thumbnails-label">No thumbnails</span>
-															)}
-														</td>
-													) : (
-														<td>
-															<ThumbnailPreview
-																graphic={graphic}
-																thumbnails={graphic.manifest?.thumbnails}
-																folderPath={graphic.folderPath}
-																alt={graphic.manifest?.name || graphic.path}
-																size="table"
-																graphicsSource={graphicsSource}
-																onRefresh={onRefresh}
-															/>
-														</td>
-													)}
-
-													{/* Name & ID */}
-													<td className="graphic-title-cell">
-														<div className="graphic-name">
-															{tooltipText ? (
-																<OverlayTrigger placement="top" overlay={tooltipText}>
-																	<span style={{ cursor: 'help' }}>{graphic.manifest?.name ?? graphic.path}</span>
-																</OverlayTrigger>
-															) : (
-																<span>{graphic.manifest?.name ?? graphic.path}</span>
-															)}
-														</div>
-														{(hasId || hasVersion) && (
-															<div className="graphic-meta-chips">
-																{hasId && <span className="meta-chip">id: {graphic.manifest.id}</span>}
-																{hasVersion && <span className="meta-chip">v{graphic.manifest.version}</span>}
-															</div>
-														)}
-													</td>
-
-													{/* Manifest Path */}
-													<td className="graphic-path-cell">
-														<code>{graphic.path}</code>
-													</td>
-
-													{/* Capabilities (Hidden in thumbnail mode) */}
-													{!isGeneratorOpen && (
-														<td>
-															<CapabilityBadge
-																supportsRealTime={graphic.manifest?.supportsRealTime}
-																supportsNonRealTime={graphic.manifest?.supportsNonRealTime}
-															/>
-														</td>
-													)}
-
-													{/* Modified Date (Hidden in thumbnail mode) */}
-													{!isGeneratorOpen && (
-														<td className="graphic-date-cell">{formatLastModified(graphic.lastModified)}</td>
-													)}
-
-													{/* Issues (Hidden in thumbnail mode) */}
-													{!isGeneratorOpen && (
-														<td>
-															<IssueBadgeList graphic={graphic} forceExpanded={allIssuesExpanded ? true : undefined} />
-														</td>
-													)}
-
-													{/* Status Badge (Shown in thumbnail mode) */}
-													{isGeneratorOpen && (
-														<td className="graphic-status-cell">
-															<StatusBadge status={status} />
-														</td>
-													)}
-
-													{/* Action Buttons */}
-													<td className="graphic-action-cell">
-														<div className="d-flex align-items-center gap-1 flex-wrap">
-															{isGeneratorOpen && (
-																<GenerateButton
+																			)
+																		})}
+																	</div>
+																) : (
+																	<span className="no-thumbnails-label">No thumbnails</span>
+																)}
+															</td>
+														) : (
+															<td>
+																<ThumbnailPreview
 																	graphic={graphic}
-																	settings={settings}
-																	onGenerate={(force) => handleGenerateOne(graphic, force)}
-																	isRunning={isRunning}
+																	thumbnails={graphic.manifest?.thumbnails}
+																	folderPath={graphic.folderPath}
+																	alt={graphic.manifest?.name || graphic.path}
+																	size="table"
+																	graphicsSource={graphicsSource}
+																	onRefresh={onRefresh}
 																/>
+															</td>
+														)}
+
+														{/* Name & ID */}
+														<td className="graphic-title-cell">
+															<div className="graphic-name">
+																{tooltipText ? (
+																	<OverlayTrigger placement="top" overlay={tooltipText}>
+																		<span style={{ cursor: 'help' }}>{graphic.manifest?.name ?? graphic.path}</span>
+																	</OverlayTrigger>
+																) : (
+																	<span>{graphic.manifest?.name ?? graphic.path}</span>
+																)}
+															</div>
+															{(hasId || hasVersion) && (
+																<div className="graphic-meta-chips">
+																	{hasId && <span className="meta-chip">id: {graphic.manifest.id}</span>}
+																	{hasVersion && <span className="meta-chip">v{graphic.manifest.version}</span>}
+																</div>
 															)}
-															<Link to={`/graphic${graphic.path}`}>
-																<Button variant="primary" size="sm" className="action-btn">
-																	Open
-																</Button>
-															</Link>
-														</div>
-													</td>
-												</tr>
+														</td>
+
+														{/* Manifest Path */}
+														<td className="graphic-path-cell">
+															<code>{graphic.path}</code>
+														</td>
+
+														{/* Capabilities (Hidden in thumbnail mode) */}
+														{!isGeneratorOpen && (
+															<td>
+																<CapabilityBadge
+																	supportsRealTime={graphic.manifest?.supportsRealTime}
+																	supportsNonRealTime={graphic.manifest?.supportsNonRealTime}
+																/>
+															</td>
+														)}
+
+														{/* Modified Date (Hidden in thumbnail mode) */}
+														{!isGeneratorOpen && (
+															<td className="graphic-date-cell">{formatLastModified(graphic.lastModified)}</td>
+														)}
+
+														{/* Issues (Hidden in thumbnail mode) */}
+														{!isGeneratorOpen && (
+															<td>
+																<IssueBadgeList
+																	graphic={graphic}
+																	isExpanded={isRowExpanded}
+																	onToggleExpanded={() => {
+																		setExpandedIssueRows((prev) => {
+																			const next = new Set(prev)
+																			if (next.has(graphic.path)) {
+																				next.delete(graphic.path)
+																			} else {
+																				next.add(graphic.path)
+																			}
+																			return next
+																		})
+																	}}
+																	hidePanel={true}
+																/>
+															</td>
+														)}
+
+														{/* Status Badge (Shown in thumbnail mode) */}
+														{isGeneratorOpen && (
+															<td className="graphic-status-cell">
+																<StatusBadge status={status} />
+															</td>
+														)}
+
+														{/* Action Buttons */}
+														<td className="graphic-action-cell">
+															<div className="d-flex align-items-center gap-1 flex-wrap justify-content-end">
+																{isGeneratorOpen && (
+																	<GenerateButton
+																		graphic={graphic}
+																		settings={settings}
+																		onGenerate={(force) => handleGenerateOne(graphic, force)}
+																		isRunning={isRunning}
+																	/>
+																)}
+																<Link to={`/graphic${graphic.path}`}>
+																	<Button variant="primary" size="sm" className="action-btn">
+																		Open
+																	</Button>
+																</Link>
+															</div>
+														</td>
+													</tr>
+
+													{/* Expanded Issues Subrow */}
+													{isRowExpanded && !isGeneratorOpen && (
+														<tr className="graphic-issues-subrow" key={`${graphic.path}-issues`}>
+															<td colSpan={7} className="graphic-issues-subrow-td">
+																<div className="graphic-issues-subrow-content">
+																	{graphic.manifestParseError && (
+																		<div className="alert alert-danger p-2 small mb-2">
+																			<strong>Manifest Parse Error:</strong>
+																			<div>{graphic.manifestParseError.toString()}</div>
+																		</div>
+																	)}
+																	{graphic.warnings?.map((warning, wi) => (
+																		<div className="alert alert-warning p-2 small mb-2" key={wi}>
+																			<strong>Warning:</strong> {warning}
+																		</div>
+																	))}
+																	<GraphicIssues
+																		manifest={graphic.manifest}
+																		graphic={graphic}
+																		onIssuesChanged={() => {
+																			if (onRefresh) onRefresh()
+																		}}
+																	/>
+																</div>
+															</td>
+														</tr>
+													)}
+												</React.Fragment>
 											)
 										})}
 									</tbody>

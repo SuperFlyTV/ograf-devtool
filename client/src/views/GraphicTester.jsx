@@ -18,6 +18,8 @@ import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext
 import { getDefaultDataFromSchema } from 'ograf-form'
 
 import { TopBanner } from '../components/common/TopBanner.jsx'
+import { SafeAreaOverlay } from '../components/common/SafeAreaOverlay.jsx'
+import { FpsMeter } from '../components/common/FpsMeter.jsx'
 
 import backgroundFootball from '../../assets/backgrounds/football.jpg'
 import backgroundFireworks from '../../assets/backgrounds/fireworks.jpg'
@@ -322,7 +324,6 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 		}
 	}, [graphic, graphicManifest])
 
-
 	const settingsRef = React.useRef(settings)
 	settingsRef.current = settings
 
@@ -591,6 +592,40 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 	const [background, setBackground] = React.useState(cacheBackground)
 	const [showExportModal, setShowExportModal] = React.useState(false)
 
+	const [showSafeArea, setShowSafeArea] = React.useState(() => {
+		try {
+			return localStorage.getItem('graphicTester.showSafeArea') === 'true'
+		} catch (_) {
+			return false
+		}
+	})
+	const toggleSafeArea = React.useCallback(() => {
+		setShowSafeArea((prev) => {
+			const next = !prev
+			try {
+				localStorage.setItem('graphicTester.showSafeArea', String(next))
+			} catch (_) {}
+			return next
+		})
+	}, [])
+
+	const [showFpsMeter, setShowFpsMeter] = React.useState(() => {
+		try {
+			return localStorage.getItem('graphicTester.showFpsMeter') !== 'false'
+		} catch (_) {
+			return true
+		}
+	})
+	const toggleFpsMeter = React.useCallback(() => {
+		setShowFpsMeter((prev) => {
+			const next = !prev
+			try {
+				localStorage.setItem('graphicTester.showFpsMeter', String(next))
+			} catch (_) {}
+			return next
+		})
+	}, [])
+
 	return (
 		<SettingsContext.Provider value={{ settings, onChange: onSettingsChange }}>
 			<div className="workspace-page-wrapper graphic-tester-page">
@@ -668,7 +703,11 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 									<div className="issues">
 										{!isReloading ? (
 											<div className="issues-card">
-												<GraphicIssues manifest={graphicManifest} graphic={graphic} />
+												<GraphicIssues
+													manifest={graphicManifest || graphic?.manifest}
+													graphic={graphic}
+													onIssuesChanged={() => setGraphicManifest({ ...graphic.manifest })}
+												/>
 											</div>
 										) : null}
 
@@ -695,7 +734,9 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 													<strong>Graphic Warnings:</strong>
 													<ul className="mb-0 ps-3 mt-1">
 														{displayedWarnings.map((issue, index) => (
-															<li key={index} style={{ whiteSpace: 'pre-line' }}>{issue}</li>
+															<li key={index} style={{ whiteSpace: 'pre-line' }}>
+																{issue}
+															</li>
 														))}
 													</ul>
 
@@ -703,7 +744,10 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 														<div className="mt-3 pt-2 border-top border-warning border-opacity-25">
 															<div className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
 																<div className="small">
-																	<strong>Missing Permission:</strong> The Graphic is fetching external resources, but the manifest does not declare <code>accessToPublicInternet: &#123; exact: true &#125;</code> in <code>renderRequirements</code>.
+																	<strong>Missing Permission:</strong> The Graphic is fetching external resources, but
+																	the manifest does not declare{' '}
+																	<code>accessToPublicInternet: &#123; exact: true &#125;</code> in{' '}
+																	<code>renderRequirements</code>.
 																</div>
 																<Button
 																	variant="warning"
@@ -775,8 +819,10 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 								className="graphic-canvas-wrapper"
 								style={{
 									aspectRatio: `${settings.width || 1920} / ${settings.height || 1080}`,
+									position: 'relative',
 								}}
 							>
+								{settings.realtime && showFpsMeter && <FpsMeter active={true} />}
 								<div
 									ref={previewContainerRef}
 									style={{
@@ -794,6 +840,7 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 											transformOrigin: 'top left',
 											width: settings.width || 1920,
 											height: settings.height || 1080,
+											position: 'relative',
 										}}
 									>
 										<div
@@ -824,6 +871,10 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 												alt="background"
 											></img>
 										) : null}
+
+										{showSafeArea && (
+											<SafeAreaOverlay width={settings.width || 1920} height={settings.height || 1080} />
+										)}
 									</div>
 								</div>
 							</div>
@@ -836,6 +887,11 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 										storeBackground(bg)
 										setBackground(bg)
 									}}
+									showSafeArea={showSafeArea}
+									toggleSafeArea={toggleSafeArea}
+									showFpsMeter={showFpsMeter}
+									toggleFpsMeter={toggleFpsMeter}
+									isRealtime={Boolean(settings.realtime)}
 								/>
 							</div>
 						</div>
@@ -854,22 +910,54 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 	)
 }
 
-function GraphicTesterOptions({ background, setBackground }) {
+function GraphicTesterOptions({
+	background,
+	setBackground,
+	showSafeArea,
+	toggleSafeArea,
+	showFpsMeter,
+	toggleFpsMeter,
+	isRealtime,
+}) {
 	const [changeBackground, setChangeBackground] = React.useState(false)
 	return (
-		<>
+		<div className="d-flex align-items-center gap-2 flex-wrap">
 			<Button
+				variant={changeBackground ? 'primary' : 'outline-light'}
+				size="sm"
 				onClick={() => {
 					setChangeBackground(!changeBackground)
 				}}
 			>
-				🖼️ Change Background
+				🖼️ Background
 			</Button>
 
+			<Button
+				variant={showSafeArea ? 'info' : 'outline-light'}
+				size="sm"
+				onClick={toggleSafeArea}
+				title="Toggle EBU R95 90% Action Safe / 80% Title Safe overlay"
+			>
+				Safe Area (EBU R95)
+			</Button>
+
+			{isRealtime && (
+				<Button
+					variant={showFpsMeter ? 'success' : 'outline-light'}
+					size="sm"
+					onClick={toggleFpsMeter}
+					title="Toggle Live FPS & Frame-Drop meter"
+				>
+					FPS Meter
+				</Button>
+			)}
+
 			{changeBackground ? (
-				<GraphicTesterOptionsSetBackground background={background} setBackground={setBackground} />
+				<div className="w-100 mt-2">
+					<GraphicTesterOptionsSetBackground background={background} setBackground={setBackground} />
+				</div>
 			) : null}
-		</>
+		</div>
 	)
 }
 

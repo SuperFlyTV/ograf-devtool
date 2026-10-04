@@ -324,6 +324,39 @@
 			white-space: nowrap;
 			text-align: right;
 		}
+
+		.graphic-issues-subrow {
+			background: var(--app-surface-subtle, rgba(0, 0, 0, 0.02));
+
+			&:hover {
+				background: var(--app-surface-subtle, rgba(0, 0, 0, 0.02)) !important;
+			}
+
+			.graphic-issues-subrow-td {
+				padding: 0.25rem 1rem 1rem 1rem !important;
+				border-top: none !important;
+			}
+
+			.graphic-issues-subrow-content {
+				margin-left: auto;
+				margin-right: 4.5rem;
+				max-width: 860px;
+				width: 100%;
+				background: var(--app-card-bg-solid);
+				border: 1px solid var(--app-card-border);
+				border-radius: 8px;
+				padding: 0.85rem;
+				box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+			}
+		}
+	}
+
+	[data-bs-theme='dark'] & .graphics-dark-table .graphic-issues-subrow {
+		background: rgba(255, 255, 255, 0.02);
+
+		.graphic-issues-subrow-content {
+			box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+		}
 	}
 }
 

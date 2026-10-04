@@ -588,6 +588,17 @@
 			}
 		}
 
+		&.badge-btn-info {
+			background: rgba(56, 189, 248, 0.15);
+			border-color: rgba(56, 189, 248, 0.4);
+			color: #0284c7;
+
+			&:hover {
+				background: rgba(56, 189, 248, 0.25);
+				border-color: #38bdf8;
+			}
+		}
+
 		&.badge-btn-valid {
 			background: rgba(16, 185, 129, 0.12);
 			border-color: rgba(16, 185, 129, 0.3);
@@ -606,6 +617,9 @@
 		}
 		&.badge-btn-warning {
 			color: #fcd34d;
+		}
+		&.badge-btn-info {
+			color: #7dd3fc;
 		}
 		&.badge-btn-valid {
 			color: #6ee7b7;
