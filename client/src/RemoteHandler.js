@@ -10,6 +10,21 @@ export function isGithubRateLimited() {
 	return Boolean(githubRateLimitResetAt) && Date.now() < githubRateLimitResetAt
 }
 
+export function isSamplePackUrl(url) {
+	if (!url || typeof url !== 'string') return false
+	const trimmed = url.trim().toLowerCase()
+	return trimmed === 'sample-pack' || trimmed === 'samples' || trimmed === 'sample' || trimmed.includes('/api/samples')
+}
+
+export function resolveRemoteUrl(url) {
+	if (!url || typeof url !== 'string') return ''
+	const trimmed = url.trim()
+	if (isSamplePackUrl(trimmed)) {
+		return `${window.location.origin}/api/samples`
+	}
+	return trimmed
+}
+
 /**
  * Formats a duration (ms) as a human-readable relative time, e.g. "32 seconds", "5 minutes", "2 hours".
  */
@@ -56,27 +71,44 @@ export function formatDiscoveryProgress(progress) {
 
 const GITHUB_API_CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 const GITHUB_API_CACHE_KEY_PREFIX = 'remote-handler-github-api-cache:'
+/**
+ * Clears all GitHub API cached responses from localStorage.
+ */
+export function clearGithubApiCache() {
+	for (let i = localStorage.length - 1; i >= 0; i--) {
+		const key = localStorage.key(i)
+		if (key && key.startsWith(GITHUB_API_CACHE_KEY_PREFIX)) {
+			localStorage.removeItem(key)
+		}
+	}
+}
 
 /**
  * Fetches a GitHub API url, returning the parsed JSON body.
  * Caches responses in localStorage for an hour, and tracks the "x-ratelimit-remaining"/"x-ratelimit-reset"
  * response headers, so that further calls are avoided once the (heavily rate-limited) unauthenticated quota is used up.
  */
-async function fetchGithubApi(url) {
+async function fetchGithubApi(url, forceRefresh = false) {
 	const cacheKey = GITHUB_API_CACHE_KEY_PREFIX + url
-	try {
-		const cached = JSON.parse(localStorage.getItem(cacheKey))
-		if (cached && Date.now() - cached.timestamp < GITHUB_API_CACHE_TTL_MS) return cached.data
-	} catch (_err) {
-		// Ignore corrupt/missing cache entries.
+	if (!forceRefresh) {
+		try {
+			const cached = JSON.parse(localStorage.getItem(cacheKey))
+			if (cached && Date.now() - cached.timestamp < GITHUB_API_CACHE_TTL_MS) return cached.data
+		} catch (_err) {
+			// Ignore corrupt/missing cache entries.
+		}
 	}
 
-	if (isGithubRateLimited()) {
+	if (isGithubRateLimited() && !forceRefresh) {
 		throw new Error(githubRateLimitErrorMessage())
 	}
 
 	const token = githubAuth.getToken()
-	const res = await fetch(url, token ? { headers: { Authorization: `token ${token}` } } : undefined)
+	const headers = token ? { Authorization: `token ${token}` } : undefined
+	const res = await fetch(url, {
+		headers,
+		cache: forceRefresh ? 'no-cache' : 'default',
+	})
 
 	if (res.status === 401 && token) {
 		// The stored token is no longer valid:
@@ -87,6 +119,8 @@ async function fetchGithubApi(url) {
 	const reset = res.headers.get('x-ratelimit-reset')
 	if (remaining === '0' && reset) {
 		githubRateLimitResetAt = Number(reset) * 1000
+	} else if (res.ok && remaining && Number(remaining) > 0) {
+		githubRateLimitResetAt = null
 	}
 
 	if (!res.ok) {
@@ -154,16 +188,27 @@ class RemoteHandler {
 		serviceWorkerHandler.setRemoteBaseUrl(null)
 	}
 
-	async listGraphics(onProgress) {
+	async listGraphics(onProgress, options) {
 		if (!this.url) return []
-		return this.discover(this.url, onProgress)
+		return this.discover(this.url, onProgress, options)
 	}
 
-	async discover(url, onProgress) {
+	async refresh(onProgress) {
+		clearGithubApiCache()
+		if (!this.url) return []
+		return this.discover(this.url, onProgress, { forceRefresh: true })
+	}
+
+	async discover(url, onProgress, options = {}) {
+		const forceRefresh = Boolean(options.forceRefresh)
+		if (forceRefresh) {
+			clearGithubApiCache()
+		}
+
 		let manifest = null
 		let rootJson = null
 		try {
-			const res = await fetch(url)
+			const res = await fetch(url, forceRefresh ? { cache: 'no-cache' } : undefined)
 			if (res.ok) {
 				const text = await res.text()
 				try {
@@ -187,7 +232,7 @@ class RemoteHandler {
 			graphics = [this.manifestToGraphic(url, manifest)]
 		} else {
 			this.baseUrl = null
-			graphics = await this.discoverGraphicsList(url, rootJson, onProgress)
+			graphics = await this.discoverGraphicsList(url, rootJson, onProgress, options)
 		}
 
 		// Let the service worker know how to resolve the (base-url-relative) paths of the discovered Graphics:
@@ -202,6 +247,7 @@ class RemoteHandler {
 			// The folder is everything up to (and including) the last "/" of the path:
 			folderPath: path.replace(/[^/]*$/, ''),
 			path,
+			manifestUrl,
 			manifest,
 			manifestParseError: null,
 			isRemote: true,
@@ -218,14 +264,14 @@ class RemoteHandler {
 			return '/' + absoluteUrl.slice(base.length + 1)
 		}
 		// Prefixed with "/" so it still works as a react-router path segment (see graphicResourcePath()):
-		return '/' + absoluteUrl
+		return absoluteUrl.startsWith('/') ? absoluteUrl : '/' + absoluteUrl
 	}
 
 	/**
 	 * Discover a list of Graphics from a "listing" url.
 	 * Dispatches to a server-specific implementation, based on the shape of the url/response.
 	 */
-	async discoverGraphicsList(url, rootJson, onProgress) {
+	async discoverGraphicsList(url, rootJson, onProgress, options = {}) {
 		let parsed
 		try {
 			parsed = new URL(url)
@@ -234,10 +280,10 @@ class RemoteHandler {
 		}
 
 		if (parsed.hostname === 'github.com' || parsed.hostname === 'api.github.com') {
-			return this.discoverGithub(url, onProgress)
+			return this.discoverGithub(url, onProgress, options)
 		}
 		if (this.looksLikeOgrafServer(rootJson)) {
-			return this.discoverOgrafServer(url)
+			return this.discoverOgrafServer(url, options)
 		}
 		return this.discoverGenericFileServer(url)
 	}
@@ -257,7 +303,8 @@ class RemoteHandler {
 	// 1. GitHub: discover Graphics by recursively scanning a repo (or a folder in a repo)
 	//    for "*.ograf.json" manifest files, using the GitHub Contents API.
 	// ----------------------------------------------------------------------
-	async discoverGithub(url, onProgress) {
+	async discoverGithub(url, onProgress, options = {}) {
+		const forceRefresh = Boolean(options.forceRefresh)
 		const { owner, repo, ref, path } = parseGithubUrl(url)
 		const apiBase = `https://api.github.com/repos/${owner}/${repo}/contents`
 
@@ -265,7 +312,7 @@ class RemoteHandler {
 		serviceWorkerHandler.addAllowedOrigin('https://api.github.com')
 		serviceWorkerHandler.addAllowedOrigin('https://raw.githubusercontent.com')
 
-		const effectiveRef = ref || (await this.getGithubDefaultBranch(owner, repo))
+		const effectiveRef = ref || (await this.getGithubDefaultBranch(owner, repo, forceRefresh))
 		// Use the "public" github.com url (rewritten to raw.githubusercontent.com when actually fetched, see service-worker.js)
 		// as the base url, so that Graphic paths stay human-readable:
 		this.baseUrl = `https://github.com/${owner}/${repo}/blob/${effectiveRef}${
@@ -278,7 +325,7 @@ class RemoteHandler {
 
 		let rateLimitError = null
 		try {
-			await this.walkGithubContents(apiBase, path, ref, manifestFiles, stats, onProgress)
+			await this.walkGithubContents(apiBase, path, ref, manifestFiles, stats, onProgress, forceRefresh)
 		} catch (err) {
 			if (isGithubRateLimited()) {
 				rateLimitError = err
@@ -292,7 +339,7 @@ class RemoteHandler {
 			const file = manifestFiles[i]
 			onProgress?.({ phase: 'loading-manifests', processed: i, total: manifestFiles.length })
 			try {
-				const res = await fetch(file.download_url)
+				const res = await fetch(file.download_url, forceRefresh ? { cache: 'no-cache' } : undefined)
 				if (!res.ok) {
 					console.warn(`Failed to fetch manifest "${file.path}" from GitHub: ${res.status} ${res.statusText}`)
 					continue
@@ -314,15 +361,15 @@ class RemoteHandler {
 
 		return graphics
 	}
-	async getGithubDefaultBranch(owner, repo) {
-		const info = await fetchGithubApi(`https://api.github.com/repos/${owner}/${repo}`)
+	async getGithubDefaultBranch(owner, repo, forceRefresh = false) {
+		const info = await fetchGithubApi(`https://api.github.com/repos/${owner}/${repo}`, forceRefresh)
 		return info.default_branch
 	}
-	async walkGithubContents(apiBase, path, ref, result, stats, onProgress) {
+	async walkGithubContents(apiBase, path, ref, result, stats, onProgress, forceRefresh = false) {
 		const query = ref ? `?ref=${encodeURIComponent(ref)}` : ''
 		const listUrl = `${apiBase}/${path}${query}`
 
-		const entries = await fetchGithubApi(listUrl)
+		const entries = await fetchGithubApi(listUrl, forceRefresh)
 		stats.processed++
 		onProgress?.({ phase: 'scanning-directories', ...stats })
 		if (!Array.isArray(entries)) return // it was a single file, not a folder listing
@@ -338,7 +385,7 @@ class RemoteHandler {
 		stats.total += dirEntries.length
 		onProgress?.({ phase: 'scanning-directories', ...stats })
 		for (const entry of dirEntries) {
-			await this.walkGithubContents(apiBase, entry.path, ref, result, stats, onProgress)
+			await this.walkGithubContents(apiBase, entry.path, ref, result, stats, onProgress, forceRefresh)
 		}
 	}
 
@@ -357,11 +404,12 @@ class RemoteHandler {
 	// 3. OGraf server: a base url like "http://localhost:8080/api/ograf/v1/",
 	//    exposing "graphics" (list) and "graphics/:graphicId" (per-graphic info) endpoints.
 	// ----------------------------------------------------------------------
-	async discoverOgrafServer(baseUrl) {
+	async discoverOgrafServer(baseUrl, options = {}) {
+		const forceRefresh = Boolean(options.forceRefresh)
 		const base = baseUrl.replace(/\/+$/, '')
 
 		const listUrl = `${base}/graphics`
-		const res = await fetch(listUrl)
+		const res = await fetch(listUrl, forceRefresh ? { cache: 'no-cache' } : undefined)
 		if (!res.ok) {
 			throw new Error(`Failed to list Graphics from OGraf server at "${listUrl}": ${res.status} ${res.statusText}`)
 		}
@@ -376,14 +424,14 @@ class RemoteHandler {
 
 			const infoUrl = `${base}/graphics/${encodeURIComponent(graphicId)}`
 			try {
-				const infoRes = await fetch(infoUrl)
+				const infoRes = await fetch(infoUrl, forceRefresh ? { cache: 'no-cache' } : undefined)
 				if (!infoRes.ok) {
 					console.warn(`Failed to fetch info for Graphic "${graphicId}" from "${infoUrl}": ${infoRes.status}`)
 					continue
 				}
 				const info = await infoRes.json()
 				if (info?.metadata?.content) anyHasContent = true
-				graphics.push(this.ografServerInfoToGraphic(infoUrl, info))
+				graphics.push(this.ografServerInfoToGraphic(infoUrl, info, graphicId))
 			} catch (err) {
 				console.warn(`Failed to fetch info for Graphic "${graphicId}" from "${infoUrl}"`, err)
 			}
@@ -398,7 +446,7 @@ class RemoteHandler {
 
 		return graphics
 	}
-	ografServerInfoToGraphic(infoUrl, info) {
+	ografServerInfoToGraphic(infoUrl, info, graphicId) {
 		// The manifest itself is exposed under "graphic", while "metadata.content" points to where its files are served from:
 		const manifest = info?.graphic ?? info?.metadata ?? info
 		const content = info?.metadata?.content
@@ -411,16 +459,21 @@ class RemoteHandler {
 			return this.manifestToGraphic(infoUrl, manifest, { warnings })
 		}
 
-		const folderPath = content.url.endsWith('/') ? content.url : content.url + '/'
-		serviceWorkerHandler.addAllowedOrigin(new URL(folderPath).origin)
+		const resolvedFolderUrl = new URL(content.url.endsWith('/') ? content.url : content.url + '/', infoUrl).href
+		serviceWorkerHandler.addAllowedOrigin(new URL(resolvedFolderUrl).origin)
 
 		const manifestFile = (content.files ?? []).find((file) => file.path.endsWith('.ograf.json'))
 		if (!manifestFile) {
 			warnings.push(`Could not find a manifest file ("*.ograf.json") among this Graphic's "metadata.content.files".`)
 		}
-		const manifestUrl = manifestFile ? folderPath + manifestFile.path : infoUrl
+		const manifestUrl = manifestFile ? resolvedFolderUrl + manifestFile.path : infoUrl
 
-		return this.manifestToGraphic(manifestUrl, manifest, { folderPath, warnings })
+		const graphic = this.manifestToGraphic(manifestUrl, manifest, { folderPath: resolvedFolderUrl, warnings })
+		if (graphicId) {
+			const manifestPath = manifestFile ? manifestFile.path : `${graphicId}.ograf.json`
+			graphic.path = `/${graphicId}/${manifestPath}`
+		}
+		return graphic
 	}
 }
 

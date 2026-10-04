@@ -16,10 +16,16 @@
     "vite-plugin-node-polyfills": "^0.23.0"
   },
   "dependencies": {
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
+    "@fortawesome/react-fontawesome": "^3.5.0",
+    "@mediabunny/prores": "^1.61.0",
     "@popperjs/core": "^2.11.8",
     "bootstrap": "^5.3.3",
     "dom-to-image-more": "^3.10.2",
+    "gifenc": "^1.0.3",
     "jsonschema": "^1.4.1",
+    "jszip": "^3.10.2",
+    "mediabunny": "^1.61.0",
     "ograf-form": "^1.1.0",
     "react": "^18.3.1",
     "react-bootstrap": "^2.10.6",

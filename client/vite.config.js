@@ -16,6 +16,12 @@ export default defineConfig({
 	//   },
 	server: {
 		port: 8083,
+		proxy: {
+			'/api': 'http://localhost:3100',
+			'/samples': 'http://localhost:3100',
+			'/ograf': 'http://localhost:3100',
+			'/clear-cache': 'http://localhost:3100',
+		},
 	},
 	build: {
 		rollupOptions: {

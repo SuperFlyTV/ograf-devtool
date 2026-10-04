@@ -1,155 +1,324 @@
-import domtoimage from 'dom-to-image-more'
 import { getDefaultDataFromSchema } from 'ograf-form'
-import { Renderer } from '../renderer/Renderer.js'
+import { captureSingleGraphicFrame, createGraphicRenderSession } from './VideoRenderer.js'
+import { createAnimatedWebpFromCanvases } from './encoders/webpEncoder.js'
+import { createAnimatedGifFromCanvases } from './encoders/gifEncoder.js'
 
 /**
- * Generate PNG thumbnails for a single ograf graphic using dom-to-image-more.
+ * Generate thumbnails for a single ograf graphic.
  *
- * The graphic is rendered in an off-screen container (positioned outside the viewport)
- * using an open-mode shadow DOM so dom-to-image-more can traverse and serialise it.
- * Default schema data is injected before loading so that the graphic has something to show.
- * The resulting native-resolution canvas is rescaled to every requested output resolution.
- * If a resolution has `addCropped: true`, an additional cropped variant is produced by
- * trimming fully-transparent border pixels.
+ * Supports both realtime and non-realtime graphics:
+ *   - For non-realtime: loads with renderType "non-realtime", sets action schedule if provided,
+ *     and seeks with gotoTime.
+ *   - For realtime: loads with renderType "realtime", plays action, and waits for captureDelay.
+ *
+ * Supports both "html-in-canvas" (Chrome native) and "dom-to-image" capture methods.
+ * Supports generating animated thumbnails (WebP and GIF) for non-realtime graphics.
  *
  * @param {object} opts
  * @param {object}   opts.graphic           Graphic entry from fileHandler.listGraphics()
- * @param {object}   opts.thumbnailSettings { resolutions, transparent, captureDelay }
- *   resolutions: Array<{ width, height, addCropped? }>
+ * @param {object}   opts.thumbnailSettings {
+ *   resolutions, transparent, captureDelay, skipAnimation, time, schedule, renderMethod,
+ *   generateAnimated, animatedWebp, animatedGif, animatedResolution, animatedFps, animatedHoldDuration
+ * }
  * @param {Function} opts.onProgress        (message: string) => void
  * @param {Function} opts.writeFileFn       async (path: string, blob: Blob) => void
- * @returns {Promise<Array<{file:string, resolution:{width:number,height:number}}>>}
+ * @returns {Promise<Array<{file:string, resolution:{width:number,height:number}, animated?:boolean, format?:string}>>}
  */
 export async function generateThumbnailsForGraphic({ graphic, thumbnailSettings, onProgress, writeFileFn }) {
-	const { resolutions, transparent, captureDelay = 1000, skipAnimation = true } = thumbnailSettings
+	const {
+		resolutions = [],
+		transparent = true,
+		captureDelay = 1000,
+		skipAnimation = true,
+		time = 0,
+		schedule = [],
+		renderMethod = 'html-in-canvas',
+		generateAnimated = false,
+	} = thumbnailSettings
 
-	if (!resolutions || resolutions.length === 0) throw new Error('No resolutions specified')
+	const results = []
 
-	// Use the largest resolution as the native render resolution.
-	// All other resolutions are produced by downscaling the native canvas.
+	// ── 1. Static PNG Thumbnails ──────────────────────────────────────────────
+	if (resolutions.length > 0) {
+		const staticResults = await generateStaticThumbnailsForGraphic({
+			graphic,
+			thumbnailSettings: {
+				resolutions,
+				transparent,
+				captureDelay,
+				skipAnimation,
+				time,
+				schedule,
+				renderMethod,
+			},
+			onProgress,
+			writeFileFn,
+		})
+		results.push(...staticResults)
+	}
+
+	// ── 2. Animated Thumbnails (WebP and/or GIF for non-realtime graphics) ───
+	const supportsNonRealTime = Boolean(graphic.manifest?.supportsNonRealTime)
+
+	if (generateAnimated && supportsNonRealTime) {
+		onProgress('Generating animated thumbnails…')
+		const animatedResults = await generateAnimatedThumbnailsForGraphic({
+			graphic,
+			thumbnailSettings,
+			onProgress,
+			writeFileFn,
+		})
+		results.push(...animatedResults)
+	}
+
+	return results
+}
+
+/**
+ * Generate static PNG thumbnails (and cropped variants) for a graphic.
+ */
+export async function generateStaticThumbnailsForGraphic({ graphic, thumbnailSettings, onProgress, writeFileFn }) {
+	const {
+		resolutions,
+		transparent = true,
+		captureDelay = 1000,
+		skipAnimation = true,
+		time = 0,
+		schedule = [],
+		renderMethod = 'html-in-canvas',
+	} = thumbnailSettings
+
+	if (!resolutions || resolutions.length === 0) return []
+
 	const maxRes = resolutions.reduce(
 		(best, r) => (r.width * r.height > best.width * best.height ? r : best),
 		resolutions[0]
 	)
 
-	// ── Off-screen container ──────────────────────────────────────────────────
-	// Must be in the DOM for the browser to lay out and paint the graphic,
-	// but placed far off the left edge so it is invisible to the user.
-	const container = document.createElement('div')
-	container.style.position = 'fixed'
-	container.style.top = '0'
-	container.style.left = `-${maxRes.width + 100}px`
-	container.style.width = `${maxRes.width}px`
-	container.style.height = `${maxRes.height}px`
-	container.style.overflow = 'hidden'
-	container.style.pointerEvents = 'none'
-	document.body.appendChild(container)
+	const defaultData = graphic.manifest?.schema ? getDefaultDataFromSchema(graphic.manifest.schema) : {}
+	const isNonRealTime =
+		graphic.manifest?.supportsNonRealTime &&
+		(!graphic.manifest?.supportsRealTime || thumbnailSettings.realtime === false)
+
+	const seekTime = time ?? captureDelay ?? 0
+
+	// Capture native max-resolution frame via unified renderer
+	const nativeCanvas = await captureSingleGraphicFrame({
+		graphic,
+		width: maxRes.width,
+		height: maxRes.height,
+		bgcolor: transparent ? null : '#000000',
+		renderMethod,
+		realtime: !isNonRealTime,
+		seekTime,
+		captureDelay,
+		skipAnimation,
+		initialData: defaultData,
+		schedule,
+		onProgress,
+	})
+
+	const results = []
+
+	for (const resolution of resolutions) {
+		const filename = `thumbnails/${resolution.width}x${resolution.height}.png`
+		onProgress(`Scaling & encoding ${resolution.width}×${resolution.height}…`)
+
+		let scaledCanvas
+		if (resolution.width === maxRes.width && resolution.height === maxRes.height) {
+			scaledCanvas = nativeCanvas
+		} else {
+			scaledCanvas = document.createElement('canvas')
+			scaledCanvas.width = resolution.width
+			scaledCanvas.height = resolution.height
+			const ctx = scaledCanvas.getContext('2d')
+			if (transparent) ctx.clearRect(0, 0, resolution.width, resolution.height)
+			ctx.drawImage(nativeCanvas, 0, 0, resolution.width, resolution.height)
+		}
+
+		const blob = await canvasToBlob(scaledCanvas, 'image/png')
+		onProgress(`Writing ${filename}…`)
+		await writeFileFn(graphic.folderPath + filename, blob)
+
+		results.push({
+			file: filename,
+			resolution: { width: resolution.width, height: resolution.height },
+		})
+
+		// Cropped variant
+		if (resolution.addCropped) {
+			const cropped = cropTransparentBorder(scaledCanvas)
+			if (cropped) {
+				const croppedFilename = `thumbnails/${resolution.width}x${resolution.height}-cropped.png`
+				onProgress(`Writing ${croppedFilename}…`)
+				const croppedBlob = await canvasToBlob(cropped.canvas, 'image/png')
+				await writeFileFn(graphic.folderPath + croppedFilename, croppedBlob)
+
+				results.push({
+					file: croppedFilename,
+					resolution: { width: cropped.width, height: cropped.height },
+				})
+			}
+		}
+	}
+
+	return results
+}
+
+/**
+ * Generate animated WebP and GIF thumbnails for a non-realtime graphic.
+ * Uses default schema data, start action (playAction), hold delay, and stop action (stopAction).
+ *
+ * @param {object} opts
+ * @param {object} opts.graphic
+ * @param {object} opts.thumbnailSettings
+ * @param {Function} opts.onProgress
+ * @param {Function} opts.writeFileFn
+ * @returns {Promise<Array<{file:string, resolution:{width:number,height:number}, animated:boolean, format:string}>>}
+ */
+export async function generateAnimatedThumbnailsForGraphic({ graphic, thumbnailSettings, onProgress, writeFileFn }) {
+	const {
+		renderMethod = 'html-in-canvas',
+		transparent = true,
+		animatedWebp = true,
+		animatedGif = true,
+		animatedResolution = { width: 640, height: 360 },
+		animatedFps = 15,
+		animatedHoldDuration = 1000,
+	} = thumbnailSettings
+
+	const wantWebp = animatedWebp !== false
+	const wantGif = animatedGif !== false
+
+	if (!wantWebp && !wantGif) {
+		return []
+	}
+
+	const width = animatedResolution?.width || 640
+	const height = animatedResolution?.height || 360
+	const fps = Math.max(1, animatedFps || 15)
+	const holdDuration = Math.max(0, animatedHoldDuration ?? 1000)
+
+	// Derive default schema data
+	const defaultData = graphic.manifest?.schema ? getDefaultDataFromSchema(graphic.manifest.schema) : {}
+
+	// Calculate action durations from manifest
+	const actionDurations = Array.isArray(graphic.manifest?.actionDurations) ? graphic.manifest.actionDurations : []
+	const playDuration = actionDurations.find((a) => a.type === 'playAction')?.duration || 1500
+	const stopDuration = actionDurations.find((a) => a.type === 'stopAction')?.duration || 1000
+
+	const stopTime = playDuration + holdDuration
+	const totalDuration = stopTime + stopDuration
+	const frameDurationMs = 1000 / fps
+	const totalFrames = Math.ceil(totalDuration / frameDurationMs) + 1
+
+	// Construct scheduled timeline: play at 0, stop at stopTime.
+	// Explicitly ensure skipAnimation is not used for animated thumbnail captures.
+	const schedule = [
+		{
+			timestamp: 0,
+			action: { type: 'playAction', params: { skipAnimation: false } },
+		},
+		{
+			timestamp: stopTime,
+			action: { type: 'stopAction', params: { skipAnimation: false } },
+		},
+	]
+
+	onProgress(`Rendering ${totalFrames} frames for animated thumbnail (${width}×${height} @ ${fps}fps)…`)
+
+	const session = await createGraphicRenderSession({
+		graphic,
+		width,
+		height,
+		renderMethod,
+		realtime: false,
+		initialData: defaultData,
+		schedule,
+	})
+
+	const capturedFrames = []
 
 	try {
-		// ── Derive default data from schema ───────────────────────────────────
-		const defaultData = graphic.manifest?.schema ? getDefaultDataFromSchema(graphic.manifest.schema) : {}
+		for (let i = 0; i < totalFrames; i++) {
+			const currentTime = Math.min(i * frameDurationMs, totalDuration)
+			onProgress(`Rendering animation frame ${i + 1}/${totalFrames} (${(currentTime / 1000).toFixed(2)}s)…`)
 
-		// ── Load and play the graphic ─────────────────────────────────────────
-		onProgress('Loading graphic…')
+			await session.seekTo(currentTime)
+			const frameCanvas = await session.captureFrame(transparent ? null : '#000000')
 
-		// 'open' shadow DOM mode is required so dom-to-image-more can traverse it
-		const renderer = new Renderer(container, { shadowDomMode: 'open' })
-		renderer.setGraphic(graphic)
-		renderer.setData(defaultData)
+			// Clone canvas so the frame can be retained for multi-format encoding
+			const copyCanvas = document.createElement('canvas')
+			copyCanvas.width = width
+			copyCanvas.height = height
+			const ctx = copyCanvas.getContext('2d')
+			if (transparent) ctx.clearRect(0, 0, width, height)
+			ctx.drawImage(frameCanvas, 0, 0, width, height)
+			capturedFrames.push(copyCanvas)
+		}
+	} finally {
+		await session.dispose()
+	}
 
-		await renderer.loadGraphic({
-			realtime: true,
-			width: maxRes.width,
-			height: maxRes.height,
-		})
-		await renderer.playAction({ skipAnimation: skipAnimation || undefined })
+	const results = []
 
-		// ── Wait for animation to settle ──────────────────────────────────────
-		onProgress(`Waiting ${captureDelay} ms for graphic to settle…`)
-		await sleep(captureDelay)
-
-		// ── Capture native-resolution canvas ──────────────────────────────────
-		onProgress(`Capturing at ${maxRes.width}×${maxRes.height}…`)
-
-		/** @type {HTMLCanvasElement} */
-		const nativeCanvas = await domtoimage.toCanvas(container, {
-			width: maxRes.width,
-			height: maxRes.height,
-			// null = transparent background; '#000000' for opaque
-			bgcolor: transparent ? null : '#000000',
-		})
-
-		// ── Export each requested resolution ──────────────────────────────────
-		const results = []
-
-		for (const resolution of resolutions) {
-			// ── Full-size thumbnail ───────────────────────────────────────────
-			const filename = `thumbnails/${resolution.width}x${resolution.height}.png`
-
-			onProgress(`Scaling & encoding ${resolution.width}×${resolution.height}…`)
-
-			/** @type {HTMLCanvasElement} */
-			let scaledCanvas
-			if (resolution.width === maxRes.width && resolution.height === maxRes.height) {
-				scaledCanvas = nativeCanvas
-			} else {
-				scaledCanvas = document.createElement('canvas')
-				scaledCanvas.width = resolution.width
-				scaledCanvas.height = resolution.height
-				const ctx = scaledCanvas.getContext('2d')
-				if (transparent) ctx.clearRect(0, 0, resolution.width, resolution.height)
-				ctx.drawImage(nativeCanvas, 0, 0, resolution.width, resolution.height)
-			}
-
-			const blob = await canvasToBlob(scaledCanvas, 'image/png')
-			onProgress(`Writing ${filename}…`)
-			await writeFileFn(graphic.folderPath + filename, blob)
-
-			results.push({
-				file: filename,
-				resolution: { width: resolution.width, height: resolution.height },
+	// 1. Encode Animated WebP
+	if (wantWebp) {
+		try {
+			onProgress('Encoding animated WebP thumbnail…')
+			const webpBlob = await createAnimatedWebpFromCanvases(capturedFrames, {
+				width,
+				height,
+				fps,
+				quality: 0.85,
+				loopCount: 0,
 			})
 
-			// ── Cropped variant ───────────────────────────────────────────────
-			if (resolution.addCropped) {
-				const cropped = cropTransparentBorder(scaledCanvas)
-				if (cropped) {
-					const croppedFilename = `thumbnails/${resolution.width}x${resolution.height}-cropped.png`
-					onProgress(`Writing ${croppedFilename}…`)
-					const croppedBlob = await canvasToBlob(cropped.canvas, 'image/png')
-					await writeFileFn(graphic.folderPath + croppedFilename, croppedBlob)
+			const webpFilename = `thumbnails/animated.webp`
+			onProgress(`Writing ${webpFilename} (${Math.round(webpBlob.size / 1024)} KB)…`)
+			await writeFileFn(graphic.folderPath + webpFilename, webpBlob)
 
-					results.push({
-						file: croppedFilename,
-						// Record the actual cropped pixel dimensions
-						resolution: { width: cropped.width, height: cropped.height },
-					})
-				}
-			}
+			results.push({
+				file: webpFilename,
+				resolution: { width, height },
+			})
+		} catch (err) {
+			console.warn('Failed to generate animated WebP thumbnail:', err)
 		}
-
-		// Dispose the graphic cleanly
-		try {
-			await renderer.clearGraphic()
-		} catch (_) {
-			// ignore disposal errors during thumbnail generation
-		}
-
-		return results
-	} finally {
-		container.remove()
 	}
+
+	// 2. Encode Animated GIF
+	if (wantGif) {
+		try {
+			onProgress('Encoding animated GIF thumbnail…')
+			const gifBlob = await createAnimatedGifFromCanvases(capturedFrames, {
+				width,
+				height,
+				fps,
+				loopCount: 0,
+			})
+
+			const gifFilename = `thumbnails/animated.gif`
+			onProgress(`Writing ${gifFilename} (${Math.round(gifBlob.size / 1024)} KB)…`)
+			await writeFileFn(graphic.folderPath + gifFilename, gifBlob)
+
+			results.push({
+				file: gifFilename,
+				resolution: { width, height },
+			})
+		} catch (err) {
+			console.warn('Failed to generate animated GIF thumbnail:', err)
+		}
+	}
+
+	return results
 }
 
 /**
  * Crop fully-transparent border pixels from a canvas.
  *
- * Scans all pixels and finds the tightest bounding-box of pixels whose alpha
- * channel exceeds `threshold`. Returns a new canvas containing only that region
- * (and its actual pixel dimensions), or `null` if every pixel is transparent.
- *
  * @param {HTMLCanvasElement} canvas
- * @param {number} [threshold=8]   Alpha values <= threshold are treated as "empty"
+ * @param {number} [threshold=8]
  * @returns {{ canvas: HTMLCanvasElement, width: number, height: number } | null}
  */
 function cropTransparentBorder(canvas, threshold = 8) {
@@ -174,16 +343,13 @@ function cropTransparentBorder(canvas, threshold = 8) {
 		}
 	}
 
-	// Fully transparent — nothing to crop to
 	if (maxX < 0) return null
-
-	// No crop needed — the entire canvas is already filled
-	if (minX === 0 && minY === 0 && maxX === width - 1 && maxY === height - 1) {
-		return { canvas, width, height }
-	}
 
 	const croppedW = maxX - minX + 1
 	const croppedH = maxY - minY + 1
+
+	if (croppedW === width && croppedH === height) return null
+	if (croppedW < 50 || croppedH < 50) return null
 
 	const out = document.createElement('canvas')
 	out.width = croppedW
@@ -201,8 +367,4 @@ function canvasToBlob(canvas, mimeType) {
 			else reject(new Error('canvas.toBlob() returned null'))
 		}, mimeType)
 	})
-}
-
-function sleep(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -13,21 +13,48 @@ export function GraphicAction({ action, onAction }) {
 		setData(JSON.parse(JSON.stringify(d)))
 	}
 
+	const hasSchema = Boolean(
+		schema &&
+			typeof schema === 'object' &&
+			((schema.properties && Object.keys(schema.properties).length > 0) ||
+				(schema.fields && Object.keys(schema.fields).length > 0) ||
+				(Array.isArray(schema.items) && schema.items.length > 0))
+	)
+
+	if (!hasSchema) {
+		return (
+			<Button
+				variant="outline-info"
+				size="sm"
+				className="graphic-custom-action-btn fw-semibold"
+				onClick={(e) => {
+					onAction(action.id, data, e)
+				}}
+				title={action.description || action.name || action.id}
+			>
+				{action.name ?? action.id}
+			</Button>
+		)
+	}
+
 	return (
-		<div className="graphics-action card">
-			<div className="card-header">
-				<h5>{action.name ?? action.id}</h5>
+		<div className="graphics-action-card p-3 rounded mb-2">
+			<div className="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary-subtle">
+				<span className="fw-semibold text-light fs-7">{action.name ?? action.id}</span>
 			</div>
-			<div className="card-body">
-				<div>{schema && <OGrafForm schema={schema} data={data} setData={onDataSave} />}</div>
-				<Button
-					onClick={(e) => {
-						onAction(action.id, data, e)
-					}}
-				>
-					{action.name}
-				</Button>
+			<div className="graphics-manifest-schema mb-2">
+				<OGrafForm schema={schema} data={data} setData={onDataSave} />
 			</div>
+			<Button
+				variant="primary"
+				size="sm"
+				className="w-100 fw-semibold"
+				onClick={(e) => {
+					onAction(action.id, data, e)
+				}}
+			>
+				{action.name ?? action.id}
+			</Button>
 		</div>
 	)
 }

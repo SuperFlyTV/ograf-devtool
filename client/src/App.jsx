@@ -1,17 +1,24 @@
 import * as React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router'
 import { fileHandler } from './FileHandler'
-import { remoteHandler, isGithubRateLimited, formatDiscoveryProgress, GithubRateLimitError } from './RemoteHandler'
+import {
+	remoteHandler,
+	isSamplePackUrl,
+	clearGithubApiCache,
+	isGithubRateLimited,
+	GithubRateLimitError,
+	resolveRemoteUrl,
+} from './RemoteHandler'
+import { githubAuth } from './GithubAuth'
 import { serviceWorkerHandler } from './ServiceWorkerHandler.js'
 import { setResourceSource } from './lib/lib.js'
 import { InitialView, TroubleShoot } from './views/InitialView'
 import { ListGraphics } from './views/ListGraphics'
-import { ListGraphicsThumbnails } from './views/ListGraphicsThumbnails'
 import { GraphicTester } from './views/GraphicTester.jsx'
-import { ThumbnailGeneratorView } from './views/ThumbnailGeneratorView.jsx'
+import { RemoteLoadModal } from './components/RemoteLoadModal.jsx'
 
 // Keeps a "?remoteUrl=" query param on the current route while in remote mode, so any page can be
-// reloaded/shared directly (see App's "restore from ?remoteUrl=" effect).
+// reloaded/shared directly.
 function RemoteUrlQuerySync({ graphicsSource }) {
 	const location = useLocation()
 	const navigate = useNavigate()
@@ -19,8 +26,10 @@ function RemoteUrlQuerySync({ graphicsSource }) {
 	React.useEffect(() => {
 		// Prefer baseUrl (a normalized, shareable form), but fall back to the originally entered url
 		// (e.g. an OGraf server, which doesn't have a single shared resource base):
-		const shareableUrl = remoteHandler.baseUrl ?? remoteHandler.url
-		if (graphicsSource !== 'remote' || !shareableUrl) return
+		const rawShareableUrl = remoteHandler.baseUrl ?? remoteHandler.url
+		if (graphicsSource !== 'remote' || !rawShareableUrl) return
+
+		const shareableUrl = isSamplePackUrl(rawShareableUrl) ? 'sample-pack' : rawShareableUrl
 
 		const params = new URLSearchParams(location.search)
 		if (params.get('remoteUrl') === shareableUrl) return
@@ -33,7 +42,7 @@ function RemoteUrlQuerySync({ graphicsSource }) {
 }
 
 export function App() {
-	//  ----------- Initialize ServiceWorker -----------
+	// ----------- Initialize ServiceWorker -----------
 	const [serviceWorker, setServiceWorker] = React.useState(null)
 	const [serviceWorkerError, setServiceWorkerError] = React.useState(null)
 
@@ -45,7 +54,6 @@ export function App() {
 				.then((sw) => {
 					setServiceWorker(sw)
 				})
-
 				.catch((e) => {
 					setServiceWorker(null)
 					setServiceWorkerError(e)
@@ -57,77 +65,127 @@ export function App() {
 	const [graphicsList, setGraphicsList] = React.useState(null)
 	const [graphicsFolderName, setGraphicsFolderName] = React.useState(null)
 	const [graphicsSource, setGraphicsSource] = React.useState('local') // 'local' | 'remote'
-	const [restoreError, setRestoreError] = React.useState(null)
-	const [restoreShowGithubSignIn, setRestoreShowGithubSignIn] = React.useState(false)
-	const [restorePartialGraphics, setRestorePartialGraphics] = React.useState(null)
-	const [restoreProgress, setRestoreProgress] = React.useState(null)
+	const [initialRemoteUrl, setInitialRemoteUrl] = React.useState(() => {
+		return new URLSearchParams(window.location.search).get('remoteUrl')
+	})
+
+	// Remote Modal state for refreshing / re-discovery:
+	const [showRemoteModal, setShowRemoteModal] = React.useState(false)
+	const [modalMode, setModalMode] = React.useState('loading') // 'input' | 'loading' | 'error'
+	const [remoteProgress, setRemoteProgress] = React.useState(null)
+	const [remoteError, setRemoteError] = React.useState(null)
+	const [isRateLimited, setIsRateLimited] = React.useState(false)
+	const [isSigningIn, setIsSigningIn] = React.useState(false)
+	const [partialGraphics, setPartialGraphics] = React.useState(null)
+	const [modalUrl, setModalUrl] = React.useState('')
+	const [modalTitle, setModalTitle] = React.useState('')
 
 	// Let graphicResourcePath() know whether to resolve resources against the local folder or the remote base url:
 	React.useEffect(() => {
 		setResourceSource(graphicsSource)
 	}, [graphicsSource])
 
-	const restoreFromRemoteUrl = React.useCallback((remoteUrl) => {
-		setGraphicsList(false)
-		setRestoreError(null)
-		setRestoreShowGithubSignIn(false)
-		setRestorePartialGraphics(null)
-		setRestoreProgress(null)
-		return remoteHandler
-			.init(remoteUrl, setRestoreProgress)
-			.then(() => remoteHandler.listGraphics(setRestoreProgress))
-			.then((list) => {
-				setResourceSource('remote')
+	const refreshRemoteGraphics = React.useCallback(
+		async (targetUrl) => {
+			const rawUrl = targetUrl || remoteHandler.url || 'https://github.com/ebu/ograf/tree/main/v1/examples'
+			const isSample = isSamplePackUrl(rawUrl)
+			const resolvedUrl = resolveRemoteUrl(rawUrl)
+			const effectiveTitle = isSample ? 'Bundled Sample Pack' : graphicsFolderName || rawUrl
+
+			setModalUrl(isSample ? 'sample-pack' : rawUrl)
+			setModalTitle(effectiveTitle)
+			setRemoteProgress(null)
+			setRemoteError(null)
+			setIsRateLimited(false)
+			setPartialGraphics(null)
+			setModalMode('loading')
+			setShowRemoteModal(true)
+
+			try {
+				// Clear localStorage cache for remote GitHub APIs and fetch fresh
+				clearGithubApiCache()
+				const list = await remoteHandler.discover(resolvedUrl, setRemoteProgress, { forceRefresh: true })
 				setGraphicsList(list)
-				setGraphicsFolderName(remoteUrl)
-				setGraphicsSource('remote')
-			})
-			.catch((err) => {
-				console.error(err)
-				setRestoreError(err.message)
-				setRestoreShowGithubSignIn(isGithubRateLimited())
-				if (err instanceof GithubRateLimitError && err.partialGraphics.length > 0) {
-					setRestorePartialGraphics({ graphics: err.partialGraphics, url: remoteUrl })
+				setShowRemoteModal(false)
+			} catch (err) {
+				console.error('Failed to refresh remote graphics:', err)
+				setRemoteError(err.message)
+				setIsRateLimited(isGithubRateLimited())
+				if (err instanceof GithubRateLimitError && err.partialGraphics?.length > 0) {
+					setPartialGraphics(err.partialGraphics)
 				}
-				setGraphicsList(null)
-			})
+				setModalMode('error')
+			}
+		},
+		[graphicsFolderName]
+	)
+
+	const onRefreshGraphics = React.useCallback(async () => {
+		if (graphicsSource === 'remote') {
+			await refreshRemoteGraphics()
+		} else {
+			try {
+				const list = await fileHandler.listGraphics()
+				setGraphicsList(list)
+			} catch (err) {
+				console.error('Failed to refresh local graphics:', err)
+			}
+		}
+	}, [graphicsSource, refreshRemoteGraphics])
+
+	const handleSignInGithub = React.useCallback(async () => {
+		setIsSigningIn(true)
+		try {
+			await githubAuth.signIn()
+			setIsRateLimited(false)
+			await refreshRemoteGraphics(modalUrl)
+		} catch (err) {
+			console.error('GitHub sign-in error:', err)
+			setRemoteError(`GitHub sign-in failed: ${err.message}`)
+		} finally {
+			setIsSigningIn(false)
+		}
+	}, [modalUrl, refreshRemoteGraphics])
+
+	const handleContinuePartial = React.useCallback(() => {
+		if (partialGraphics && partialGraphics.length > 0) {
+			setGraphicsList(partialGraphics)
+			setShowRemoteModal(false)
+		}
+	}, [partialGraphics])
+
+	const handleRetry = React.useCallback(() => {
+		refreshRemoteGraphics(modalUrl)
+	}, [modalUrl, refreshRemoteGraphics])
+
+	const handleSwitchToInput = React.useCallback(() => {
+		setModalMode('input')
 	}, [])
 
-	// If we land directly on a route with a "?remoteUrl=" query param (e.g. a shared link to a specific Graphic),
-	// automatically redo the discovery-dance against that remote url, instead of showing the InitialView:
-	const attemptedRestoreRef = React.useRef(false)
-	const restoreRemoteUrlRef = React.useRef(null)
-	React.useEffect(() => {
-		if (!serviceWorker || graphicsList || attemptedRestoreRef.current) return
+	const handleModalSubmitUrl = React.useCallback(
+		async (submittedUrl) => {
+			const isSample = isSamplePackUrl(submittedUrl)
+			const resolvedUrl = resolveRemoteUrl(submittedUrl)
+			const effectiveFolderName = isSample ? 'Bundled Sample Pack' : resolvedUrl
+			setGraphicsFolderName(effectiveFolderName)
+			await refreshRemoteGraphics(submittedUrl)
+		},
+		[refreshRemoteGraphics]
+	)
 
-		const remoteUrl = new URLSearchParams(window.location.search).get('remoteUrl')
-		if (!remoteUrl) return
-		attemptedRestoreRef.current = true
-		restoreRemoteUrlRef.current = remoteUrl
+	const handleCloseModal = React.useCallback(() => {
+		setShowRemoteModal(false)
+	}, [])
 
-		restoreFromRemoteUrl(remoteUrl)
-	}, [serviceWorker, graphicsList, restoreFromRemoteUrl])
-
-	const onGithubSignIn = React.useCallback(() => {
-		if (restoreRemoteUrlRef.current) restoreFromRemoteUrl(restoreRemoteUrlRef.current)
-	}, [restoreFromRemoteUrl])
-
-	const onRefreshGraphics = React.useCallback(() => {
-		setGraphicsList(false)
-		const handler = graphicsSource === 'remote' ? remoteHandler : fileHandler
-		handler.listGraphics().then(setGraphicsList).catch(console.error)
-	}, [graphicsSource])
 	const onCloseFolder = React.useCallback(() => {
+		setInitialRemoteUrl(null)
 		setGraphicsList(null)
 		setGraphicsFolderName(null)
 		if (graphicsSource === 'remote') remoteHandler.close()
 		else fileHandler.close()
-		// Drop the "?remoteUrl=" query param, so it isn't restored on a later reload:
-		attemptedRestoreRef.current = false
+		// Drop the "?remoteUrl=" query param, so it isn't restored:
 		window.history.replaceState(null, '', window.location.pathname)
 	}, [graphicsSource])
-
-	const [initialized, setInitialized] = React.useState(false)
 
 	// Initializing Service Worker:
 	if (!serviceWorker) {
@@ -164,31 +222,21 @@ export function App() {
 			</div>
 		)
 	}
-	// Select Graphics folder:
+
+	// Select Graphics folder / Landing:
 	if (!graphicsList) {
 		return (
-			<>
-				{graphicsList === false ? (
-					<div className="container">
-						<div className="alert alert-info">
-							{formatDiscoveryProgress(restoreProgress) ?? 'Loading Graphics from remote url, please wait...'}
-						</div>
-					</div>
-				) : (
-					<InitialView
-						error={restoreError}
-						showGithubSignIn={restoreShowGithubSignIn}
-						partialGraphics={restorePartialGraphics}
-						onGithubSignIn={onGithubSignIn}
-						onGraphicsFolder={({ graphicsList, graphicsFolderName, source }) => {
-							setResourceSource(source ?? 'local')
-							setGraphicsList(graphicsList)
-							setGraphicsFolderName(graphicsFolderName)
-							setGraphicsSource(source ?? 'local')
-						}}
-					/>
-				)}
-			</>
+			<InitialView
+				initialRemoteUrl={initialRemoteUrl}
+				onClearInitialRemoteUrl={() => setInitialRemoteUrl(null)}
+				onGraphicsFolder={({ graphicsList, graphicsFolderName, source }) => {
+					setInitialRemoteUrl(null)
+					setResourceSource(source ?? 'local')
+					setGraphicsList(graphicsList)
+					setGraphicsFolderName(graphicsFolderName)
+					setGraphicsSource(source ?? 'local')
+				}}
+			/>
 		)
 	}
 
@@ -209,36 +257,41 @@ export function App() {
 							/>
 						}
 					/>
+					<Route path="/thumbnails" element={<Navigate to="/" replace />} />
+					<Route path="/generate-thumbnails" element={<Navigate to="/?generator=true" replace />} />
 					<Route
-						path="/thumbnails"
+						path="/graphic/*"
 						element={
-							<ListGraphicsThumbnails
+							<GraphicTester
 								graphicsList={graphicsList}
-								onRefresh={onRefreshGraphics}
 								graphicsFolderName={graphicsFolderName}
 								graphicsSource={graphicsSource}
 								onCloseFolder={onCloseFolder}
 							/>
 						}
 					/>
-					<Route
-						path="/generate-thumbnails"
-						element={
-							graphicsSource === 'remote' ? (
-								<Navigate to="/" replace />
-							) : (
-								<ThumbnailGeneratorView
-									graphicsList={graphicsList}
-									onRefresh={onRefreshGraphics}
-									graphicsFolderName={graphicsFolderName}
-									onCloseFolder={onCloseFolder}
-								/>
-							)
-						}
-					/>
-					<Route path="/graphic/*" element={<GraphicTester graphicsList={graphicsList} />} />
 				</Routes>
 			</BrowserRouter>
+
+			{/* Remote Loading / Error / GitHub Login Modal (used on Refresh / in-app remote actions) */}
+			<RemoteLoadModal
+				show={showRemoteModal}
+				mode={modalMode}
+				url={modalUrl}
+				customTitle={modalTitle}
+				onUrlChange={setModalUrl}
+				progress={remoteProgress}
+				error={remoteError}
+				isRateLimited={isRateLimited}
+				isSigningIn={isSigningIn}
+				partialGraphics={partialGraphics}
+				onSubmitUrl={handleModalSubmitUrl}
+				onRetry={handleRetry}
+				onSignInGithub={handleSignInGithub}
+				onContinuePartial={handleContinuePartial}
+				onSwitchToInput={handleSwitchToInput}
+				onClose={handleCloseModal}
+			/>
 		</>
 	)
 }

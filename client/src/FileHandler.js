@@ -60,14 +60,33 @@ class FileHandler extends EventEmitter {
 		// List all graphics in the directory:
 		const graphics = []
 		for (const [key, file] of Object.entries(this.files)) {
-			const o = await this.isManifestFile(file.handle.name, async () => (await file.handle.getFile()).text())
+			const fileObj = await file.handle.getFile()
+			const o = await this.isManifestFile(file.handle.name, async () => fileObj.text())
 			if (o) {
+				const folderPath = key.slice(0, -file.handle.name.length)
+
+				// Find the latest lastModified across the manifest file and any .js files in the same folder
+				let lastModified = fileObj.lastModified
+				for (const [siblingKey, siblingFile] of Object.entries(this.files)) {
+					if (!siblingKey.startsWith(folderPath)) continue
+					if (!siblingFile.handle.name.endsWith('.js')) continue
+					try {
+						const siblingObj = await siblingFile.handle.getFile()
+						if (siblingObj.lastModified > lastModified) {
+							lastModified = siblingObj.lastModified
+						}
+					} catch (_) {
+						// Ignore files we can't read
+					}
+				}
+
 				const graphic = {
 					path: key,
-					folderPath: key.slice(0, -file.handle.name.length),
+					folderPath,
 					manifest: o.manifest,
 					manifestFormatting: o.formatting,
 					manifestParseError: o.error,
+					lastModified,
 				}
 				graphics.push(graphic)
 			}

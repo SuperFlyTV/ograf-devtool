@@ -119,8 +119,25 @@ self.addEventListener('install', (_event) => {
 })
 
 self.addEventListener('fetch', function (event) {
-	// file from url:
+	// Do not intercept non-GET/HEAD requests (e.g. POST, PUT) or internal API/backend routes
+	const method = event.request.method
+	if (method !== 'GET' && method !== 'HEAD') {
+		return
+	}
+
 	const url = event.request.url
+	try {
+		const parsedUrl = new URL(url)
+		if (
+			parsedUrl.pathname.startsWith('/api/') ||
+			parsedUrl.pathname.startsWith('/ograf') ||
+			parsedUrl.pathname.startsWith('/clear-cache') ||
+			parsedUrl.pathname.startsWith('/samples')
+		) {
+			return
+		}
+	} catch (_) {}
+
 	let newUrl = url
 
 	{
