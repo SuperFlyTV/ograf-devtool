@@ -2,6 +2,9 @@ import { Validator } from 'jsonschema'
 import { ResourceProvider } from '../../renderer/ResourceProvider.js'
 import { SW_VERSION } from '../sw-version.js'
 import { getDefaultDataFromSchema, validateDataSimple } from 'ograf-form'
+import { pathJoin, graphicResourcePath } from '../lib.js'
+import { fileHandler } from '../../FileHandler.js'
+
 
 let cachedCache = null
 export async function setupSchemaValidator() {
@@ -143,7 +146,7 @@ async function _setupSchemaValidator(
 
 	if (bailOut) throw new Error(`Bailing out, more than ${handledRefs} references found!`)
 
-	cachedValidator = (schema) => {
+	cachedValidator = async (schema, graphic) => {
 		const result = v.validate(schema, baseSchema)
 
 		const schemaErrors = result.errors.map((err) => {
@@ -151,7 +154,7 @@ async function _setupSchemaValidator(
 			return `${pathStr}: ${err.message}`
 		})
 
-		return validateGraphicManifest(schema, schemaErrors)
+		return validateGraphicManifest(schema, schemaErrors, graphic)
 	}
 	return {
 		validate: cachedValidator,
@@ -160,7 +163,45 @@ async function _setupSchemaValidator(
 }
 let cachedValidator = null
 
-export function validateGraphicManifest(graphicManifest, schemaErrors) {
+export async function checkThumbnailFileExists(folderPath, thumbFile) {
+	if (!thumbFile || typeof thumbFile !== 'string') return true
+	const fullPath = pathJoin(folderPath || '', thumbFile)
+
+	// 1. If local directory is opened via fileHandler:
+	if (typeof fileHandler !== 'undefined' && fileHandler?.dirHandle) {
+		try {
+			const normalizedPath = fullPath.startsWith('/') ? fullPath : '/' + fullPath
+			if (fileHandler.files && fileHandler.files[normalizedPath]) {
+				return true
+			}
+			// Attempt to read the file (which will also search/rediscover in parent dir if needed)
+			await fileHandler.readFile(normalizedPath)
+			return true
+		} catch (_err) {
+			return false
+		}
+	}
+
+	// 2. If remote or via service worker:
+	if (typeof fetch === 'function') {
+		try {
+			const url = graphicResourcePath(fullPath)
+			const response = await fetch(url, { method: 'HEAD', cache: 'no-store' }).catch(() => null)
+			if (response && response.ok) return true
+			if (!response || response.status === 405 || response.status === 501) {
+				const getResponse = await fetch(url, { method: 'GET', cache: 'no-store' })
+				return getResponse.ok
+			}
+			return response ? response.ok : false
+		} catch (_err) {
+			return false
+		}
+	}
+
+	return true
+}
+
+export async function validateGraphicManifest(graphicManifest, schemaErrors, options) {
 	const errors = []
 
 	// Find helpful issues that is not covered by the JSON schema
@@ -187,22 +228,24 @@ export function validateGraphicManifest(graphicManifest, schemaErrors) {
 		}
 	}
 
-	for (const schemaError of schemaErrors) {
-		{
-			// : is not allowed to have the additional property "xyz"
-			const m = schemaError.match(/(.*)is not allowed to have the additional property "(.*)"/)
-			if (m) {
-				const path = m[1]
-				const prop = m[2]
+	if (schemaErrors) {
+		for (const schemaError of schemaErrors) {
+			{
+				// : is not allowed to have the additional property "xyz"
+				const m = schemaError.match(/(.*)is not allowed to have the additional property "(.*)"/)
+				if (m) {
+					const path = m[1]
+					const prop = m[2]
 
-				errors.push(
-					`${path} is not allowed to have the additional property "${prop}". (Vendor-specific properties must be prefixed with "v_"!)`
-				)
-				continue
+					errors.push(
+						`${path} is not allowed to have the additional property "${prop}". (Vendor-specific properties must be prefixed with "v_"!)`
+					)
+					continue
+				}
 			}
-		}
 
-		errors.push(schemaError)
+			errors.push(schemaError)
+		}
 	}
 
 	if (graphicManifest.schema) {
@@ -216,6 +259,29 @@ export function validateGraphicManifest(graphicManifest, schemaErrors) {
 			const result = validateDataSimple(graphicManifest.schema, defaultData, '')
 			for (const error of result.errors) {
 				errors.push(`Bad default value in schema: ${error}`)
+			}
+		}
+	}
+
+	if (graphicManifest.thumbnails && Array.isArray(graphicManifest.thumbnails)) {
+		let folderPath = ''
+		if (typeof options === 'string') {
+			folderPath = options
+		} else if (options && typeof options === 'object') {
+			if (options.folderPath !== undefined) {
+				folderPath = options.folderPath
+			} else if (options.graphic?.folderPath !== undefined) {
+				folderPath = options.graphic.folderPath
+			}
+		}
+
+		for (const thumb of graphicManifest.thumbnails) {
+			const thumbFile = typeof thumb === 'string' ? thumb : thumb?.file
+			if (thumbFile && typeof thumbFile === 'string') {
+				const exists = await checkThumbnailFileExists(folderPath, thumbFile)
+				if (!exists) {
+					errors.push(`Referenced thumbnail file "${thumbFile}" does not exist in the ograf folder`)
+				}
 			}
 		}
 	}

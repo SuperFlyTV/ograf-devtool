@@ -45,9 +45,7 @@ class ServiceWorkerHandler {
 						}
 					})
 			} else if (msg.type === 'fetch-from-outside') {
-				issueTracker.addWarning(
-					`Friendly notice: The external resource "${msg.url}" was fetched by the Graphic. This is allowed, but can be an issue in production in case of network connectivity issues.`
-				)
+				issueTracker.addExternalResource(msg.url)
 			} else if (msg.type === 'fetch-error') {
 				issueTracker.addError(`There was an error when graphic fetched "${msg.url}": ${msg.message}`)
 			} else if (msg.reply !== undefined) {

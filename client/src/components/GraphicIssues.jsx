@@ -48,6 +48,7 @@ export function GraphicIssues({ manifest, graphic }) {
 	}, [graphic, manifest])
 
 	React.useEffect(() => {
+		let isCancelled = false
 		if (!validator) {
 			setGraphicManifestErrors(['Loading schema validator...'])
 			return
@@ -60,16 +61,27 @@ export function GraphicIssues({ manifest, graphic }) {
 			setGraphicManifestErrors([`Validator Error: ${validator.error}`])
 			return
 		}
-		const errors = validator.value(manifest)
 
-		setGraphicManifestErrors((prevValue) => {
-			if (JSON.stringify(prevValue) !== JSON.stringify(errors)) {
-				return errors
-			} else {
-				return prevValue
-			}
-		})
-	}, [manifest, validator])
+		Promise.resolve(validator.value(manifest, graphic))
+			.then((errors) => {
+				if (isCancelled) return
+				setGraphicManifestErrors((prevValue) => {
+					if (JSON.stringify(prevValue) !== JSON.stringify(errors)) {
+						return errors
+					} else {
+						return prevValue
+					}
+				})
+			})
+			.catch((err) => {
+				if (isCancelled) return
+				setGraphicManifestErrors([`Validator Error: ${err.message || err}`])
+			})
+
+		return () => {
+			isCancelled = true
+		}
+	}, [manifest, validator, graphic])
 
 	if (!validator) {
 		return <div className="text-muted small p-2">Loading schema validator...</div>

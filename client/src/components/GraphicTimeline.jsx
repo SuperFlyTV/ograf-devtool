@@ -592,7 +592,7 @@ export function GraphicTimeline({
 								}}
 								title={`Set duration to ${formatTime(currentPlayTime)}`}
 							>
-								⏱️ Set
+								Set end point here
 							</button>
 						)}
 

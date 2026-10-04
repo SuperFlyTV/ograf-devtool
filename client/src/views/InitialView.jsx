@@ -298,13 +298,11 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 								}}
 							>
 								<div className="dropzone-inner">
-									<span className="dropzone-icon">📥</span>
+									<span className="dropzone-icon">📁</span>
 									<span className="dropzone-text">
 										{'showDirectoryPicker' in window ? (
 											<>
-												<strong>Drag & drop folder here</strong>
-												<br />
-												or click to browse
+												<strong>Drag & drop folder with OGrafs here</strong>
 											</>
 										) : (
 											<strong>Directory access unavailable</strong>
@@ -445,7 +443,7 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 					<Accordion flush>
 						<Accordion.Item eventKey="0" className="troubleshoot-accordion-item">
 							<Accordion.Header>
-								<span className="troubleshoot-toggle-text">🛠️ Need help? Troubleshooting & Service Worker Reset</span>
+								<span className="troubleshoot-toggle-text">Troubleshooting & Cache Reset</span>
 							</Accordion.Header>
 							<Accordion.Body>
 								<TroubleShoot />

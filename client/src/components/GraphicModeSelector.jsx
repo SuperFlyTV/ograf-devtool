@@ -26,7 +26,7 @@ export function GraphicModeSelector({ manifest, isRealtime, onChangeMode }) {
 						!supportsRealTime ? (
 							<Tooltip id="rt-mode-tt">This graphic manifest does not support Real-Time rendering.</Tooltip>
 						) : (
-							<Tooltip id="rt-mode-tt">Live, interactive execution with immediate action triggers.</Tooltip>
+							<Tooltip id="rt-mode-tt">Render the OGraf in Real-Time. Used in Live Broadcasts.</Tooltip>
 						)
 					}
 				>
@@ -50,7 +50,9 @@ export function GraphicModeSelector({ manifest, isRealtime, onChangeMode }) {
 						!supportsNonRealTime ? (
 							<Tooltip id="nrt-mode-tt">This graphic manifest does not support Non-Real-Time rendering.</Tooltip>
 						) : (
-							<Tooltip id="nrt-mode-tt">Deterministic timeline playback and scheduled action triggers.</Tooltip>
+							<Tooltip id="nrt-mode-tt">
+								Render the PGraf in Non-Real-Time mode, used in NLEs or post-production.
+							</Tooltip>
 						)
 					}
 				>

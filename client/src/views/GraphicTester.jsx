@@ -52,6 +52,23 @@ function storeBackground(background) {
 	}
 }
 
+export function manifestHasPublicInternetAccess(manifest) {
+	if (!manifest) return false
+	if (!Array.isArray(manifest.renderRequirements) || manifest.renderRequirements.length === 0) {
+		return false
+	}
+	return manifest.renderRequirements.some((req) => {
+		if (!req || !req.accessToPublicInternet) return false
+		if (typeof req.accessToPublicInternet === 'boolean') {
+			return req.accessToPublicInternet === true
+		}
+		if (typeof req.accessToPublicInternet === 'object') {
+			return req.accessToPublicInternet.exact === true || req.accessToPublicInternet.ideal === true
+		}
+		return false
+	})
+}
+
 export function GraphicTester({ graphicsList, graphicsFolderName, graphicsSource, onCloseFolder }) {
 	const navigate = useNavigate()
 	const params = useParams()
@@ -248,19 +265,63 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 			listener.stop()
 		}
 	}, [])
+
 	const [errors, setErrors] = React.useState([])
-	const [warnings, setWarnings] = React.useState([])
+	const [rawWarnings, setRawWarnings] = React.useState([])
+	const [externalWarnings, setExternalWarnings] = React.useState([])
+	const [hasExternalResources, setHasExternalResources] = React.useState(issueTracker.hasExternalResources)
 	React.useEffect(() => {
 		setErrors(issueTracker.errors)
-		setWarnings(issueTracker.warnings)
+		setRawWarnings(issueTracker.rawWarnings)
+		setExternalWarnings(issueTracker.externalWarnings)
+		setHasExternalResources(issueTracker.hasExternalResources)
 		const listener = issueTracker.listenToChanges(() => {
 			setErrors([...issueTracker.errors])
-			setWarnings([...issueTracker.warnings])
+			setRawWarnings([...issueTracker.rawWarnings])
+			setExternalWarnings([...issueTracker.externalWarnings])
+			setHasExternalResources(issueTracker.hasExternalResources)
 		})
 		return () => {
 			listener.stop()
 		}
 	}, [])
+
+	const [isFixingInternetAccess, setIsFixingInternetAccess] = React.useState(false)
+	const handleQuickFixInternetAccess = React.useCallback(async () => {
+		setIsFixingInternetAccess(true)
+		try {
+			const currentManifest = graphicManifest || graphic.manifest || {}
+			let updatedRenderRequirements
+			if (Array.isArray(currentManifest.renderRequirements) && currentManifest.renderRequirements.length > 0) {
+				updatedRenderRequirements = currentManifest.renderRequirements.map((req) => ({
+					...req,
+					accessToPublicInternet: {
+						...(typeof req.accessToPublicInternet === 'object' && req.accessToPublicInternet !== null
+							? req.accessToPublicInternet
+							: {}),
+						exact: true,
+					},
+				}))
+			} else {
+				updatedRenderRequirements = [{ accessToPublicInternet: { exact: true } }]
+			}
+
+			const updatedManifest = {
+				...currentManifest,
+				renderRequirements: updatedRenderRequirements,
+			}
+
+			await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+			graphic.manifest = updatedManifest
+			setGraphicManifest(updatedManifest)
+		} catch (err) {
+			console.error('Failed to update manifest:', err)
+			issueTracker.addError(`Failed to update manifest: ${err.message || err}`)
+		} finally {
+			setIsFixingInternetAccess(false)
+		}
+	}, [graphic, graphicManifest])
+
 
 	const settingsRef = React.useRef(settings)
 	settingsRef.current = settings
@@ -622,16 +683,54 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 											</div>
 										) : null}
 
-										{warnings.length ? (
-											<div className="alert alert-warning mt-2" role="alert">
-												Graphic Warnings:
-												<ul className="mb-0 ps-3">
-													{warnings.map((issue, index) => (
-														<li key={index}>{issue}</li>
-													))}
-												</ul>
-											</div>
-										) : null}
+										{(() => {
+											const currentManifest = graphicManifest || graphic?.manifest
+											const hasInternetAccess = manifestHasPublicInternetAccess(currentManifest)
+											const displayedWarnings = hasInternetAccess ? rawWarnings : [...rawWarnings, ...externalWarnings]
+
+											if (!displayedWarnings.length) return null
+
+											return (
+												<div className="alert alert-warning mt-2" role="alert">
+													<strong>Graphic Warnings:</strong>
+													<ul className="mb-0 ps-3 mt-1">
+														{displayedWarnings.map((issue, index) => (
+															<li key={index} style={{ whiteSpace: 'pre-line' }}>{issue}</li>
+														))}
+													</ul>
+
+													{!hasInternetAccess && hasExternalResources && (
+														<div className="mt-3 pt-2 border-top border-warning border-opacity-25">
+															<div className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
+																<div className="small">
+																	<strong>Missing Permission:</strong> The Graphic is fetching external resources, but the manifest does not declare <code>accessToPublicInternet: &#123; exact: true &#125;</code> in <code>renderRequirements</code>.
+																</div>
+																<Button
+																	variant="warning"
+																	size="sm"
+																	disabled={isFixingInternetAccess}
+																	onClick={handleQuickFixInternetAccess}
+																	className="text-nowrap align-self-start align-self-sm-center fw-semibold"
+																>
+																	{isFixingInternetAccess ? 'Saving…' : 'Quick Fix: Set accessToPublicInternet'}
+																</Button>
+															</div>
+														</div>
+													)}
+
+													<div className="mt-2 pt-2 border-top border-warning border-opacity-25 d-flex justify-content-end">
+														<Button
+															variant="outline-warning"
+															size="sm"
+															onClick={() => issueTracker.clearWarnings()}
+															title="Clear all runtime warnings"
+														>
+															Clear warnings
+														</Button>
+													</div>
+												</div>
+											)
+										})()}
 									</div>
 								</>
 							) : (

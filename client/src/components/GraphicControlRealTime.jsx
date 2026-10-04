@@ -85,7 +85,7 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 								{manifest.schema && (
 									<div className="control-section-card rounded p-3">
 										<div className="d-flex justify-content-between align-items-center mb-2">
-											<h6 className="section-card-title mb-0">Parameters / Schema Data</h6>
+											<h6 className="section-card-title mb-0">Input data</h6>
 										</div>
 										<div className="graphics-manifest-schema m-0">
 											<OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />

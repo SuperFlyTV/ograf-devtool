@@ -208,12 +208,6 @@ export function RemoteLoadModal({
 									variant="primary"
 									style={{ width: '3rem', height: '3rem', borderWidth: '0.25rem' }}
 								/>
-								<div
-									className="position-absolute top-50 start-50 translate-middle text-primary"
-									style={{ fontSize: '1.2rem' }}
-								>
-									✨
-								</div>
 							</div>
 							<div className="fw-semibold mb-1 fs-6">{progressText}</div>
 							<div className="text-secondary small mb-3">

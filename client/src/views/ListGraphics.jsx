@@ -583,7 +583,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 									title="Refresh graphics from disk / remote"
 								>
 									<FontAwesomeIcon icon={faArrowsRotate} spin={isRefreshing} />{' '}
-									{isRefreshing ? 'Refreshing…' : 'Refresh list'}
+									{isRefreshing ? 'Refreshing…' : 'Refresh'}
 								</Button>
 							)}
 
@@ -594,7 +594,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 								<input
 									type="text"
 									className="search-input"
-									placeholder="Search graphics by name, path, id…"
+									placeholder="Filter graphics…"
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
 								/>
@@ -691,10 +691,10 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 												<th style={{ width: '100px' }}>Thumbnail</th>
 											)}
 											{renderSortHeader('name', 'Name')}
-											{renderSortHeader('path', 'Manifest Path')}
+											{renderSortHeader('path', 'Path')}
 											{!isGeneratorOpen && renderSortHeader('capabilities', 'Capabilities')}
-											{!isGeneratorOpen && renderSortHeader('lastModified', 'Modified Date')}
-											{!isGeneratorOpen && <th style={{ minWidth: '160px' }}>Validation & Issues</th>}
+											{!isGeneratorOpen && renderSortHeader('lastModified', 'Modified')}
+											{!isGeneratorOpen && <th style={{ minWidth: '160px' }}>Validation</th>}
 											{isGeneratorOpen && <th style={{ width: '120px' }}>Status</th>}
 											<th style={{ width: isGeneratorOpen ? '160px' : '90px' }}>Actions</th>
 										</tr>
@@ -858,7 +858,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 															)}
 															<Link to={`/graphic${graphic.path}`}>
 																<Button variant="primary" size="sm" className="action-btn">
-																	Select →
+																	Open
 																</Button>
 															</Link>
 														</div>

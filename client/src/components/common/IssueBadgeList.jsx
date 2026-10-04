@@ -1,6 +1,8 @@
 import * as React from 'react'
 import { Badge } from 'react-bootstrap'
 import { GraphicIssues } from '../GraphicIssues.jsx'
+import { setupSchemaValidator, testGraphicManifestFileNames } from '../../lib/graphic/verify.js'
+import { usePromise } from '../../lib/lib.js'
 
 export function getGraphicIssueCounts(graphic) {
 	let errorCount = 0
@@ -12,6 +14,10 @@ export function getGraphicIssueCounts(graphic) {
 
 	if (graphic.warnings && graphic.warnings.length > 0) {
 		warningCount += graphic.warnings.length
+	}
+
+	if (graphic.manifestErrors && graphic.manifestErrors.length > 0) {
+		errorCount += graphic.manifestErrors.length
 	}
 
 	// Filename error checks
@@ -28,10 +34,49 @@ export function getGraphicIssueCounts(graphic) {
 
 export function IssueBadgeList({ graphic, forceExpanded, className = '' }) {
 	const [isLocallyExpanded, setIsLocallyExpanded] = React.useState(false)
+	const [manifestErrors, setManifestErrors] = React.useState(graphic?.manifestErrors || [])
 
 	const isExpanded = forceExpanded !== undefined ? forceExpanded : isLocallyExpanded
 
-	const { errorCount, warningCount, hasIssues } = React.useMemo(() => getGraphicIssueCounts(graphic), [graphic])
+	const graphicManifestFileErrors = React.useMemo(() => testGraphicManifestFileNames(graphic), [graphic])
+
+	const validator = usePromise(async () => {
+		return setupSchemaValidator()
+	}, [])
+
+	React.useEffect(() => {
+		let isCancelled = false
+		if (!validator?.value || !graphic?.manifest) {
+			setManifestErrors([])
+			return
+		}
+
+		Promise.resolve(validator.value(graphic.manifest, graphic))
+			.then((errors) => {
+				if (isCancelled) return
+				const errList = errors || []
+				graphic.manifestErrors = errList
+				setManifestErrors(errList)
+			})
+			.catch((_err) => {
+				if (isCancelled) return
+				const errList = [`Validator error: ${_err.message || _err}`]
+				graphic.manifestErrors = errList
+				setManifestErrors(errList)
+			})
+
+		return () => {
+			isCancelled = true
+		}
+	}, [validator, graphic?.manifest, graphic])
+
+	const errorCount =
+		(graphic.manifestParseError ? 1 : 0) +
+		graphicManifestFileErrors.length +
+		manifestErrors.length
+
+	const warningCount = graphic.warnings ? graphic.warnings.length : 0
+	const hasIssues = errorCount > 0 || warningCount > 0
 
 	const toggleExpanded = React.useCallback((e) => {
 		e.stopPropagation()

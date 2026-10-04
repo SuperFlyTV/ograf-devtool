@@ -75,7 +75,6 @@ export function GraphicSettings() {
 													value={settings.duration}
 													onChange={(e) => handleOnChange(e, 'duration')}
 												/>
-												<Form.Text>Duration of the graphic in milliseconds</Form.Text>
 											</Form.Group>
 											<Form.Group className="mb-3">
 												<Form.Label>Quantize point-in-time (fps)</Form.Label>
@@ -84,7 +83,6 @@ export function GraphicSettings() {
 													value={settings.quantizeFps}
 													onChange={(e) => handleOnChange(e, 'quantizeFps')}
 												/>
-												<Form.Text>When set, will cause the point-in-time to stick to discrete frame times.</Form.Text>
 											</Form.Group>
 										</>
 									) : (
