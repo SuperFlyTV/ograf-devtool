@@ -71,7 +71,22 @@ function startServer(port, devMode) {
 
   // Serve bundled sample graphics:
   const samplesDir = path.resolve(__dirname, "ograf-samples");
-  app.use("/samples", express.static(samplesDir));
+  app.use(
+    "/samples",
+    express.static(samplesDir, {
+      maxAge: "1d",
+      setHeaders: (res, filePath) => {
+        if (filePath.toLowerCase().endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+        } else {
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=86400, stale-while-revalidate=604800",
+          );
+        }
+      },
+    }),
+  );
 
   // OGraf Server API endpoints for sample pack:
   app.get(["/api/samples", "/api/samples/graphics"], (_req, res) => {
@@ -390,13 +405,43 @@ function startServer(port, devMode) {
     // Serve static files from the client/dist folder:
     const staticPath = path.resolve("./client/dist");
     console.log(`Serving static files from ${staticPath}`);
-    app.use("/", express.static(staticPath));
+    app.use(
+      "/",
+      express.static(staticPath, {
+        setHeaders: (res, filePath) => {
+          const filename = path.basename(filePath).toLowerCase();
+          const normalizedPath = filePath.toLowerCase();
+
+          // HTML and Service Worker should never be cached long-term to allow immediate app updates
+          if (
+            filename === "index.html" ||
+            filename === "service-worker.js" ||
+            normalizedPath.endsWith(".html")
+          ) {
+            res.setHeader("Cache-Control", "no-cache");
+          } else if (
+            normalizedPath.match(
+              /\.(js|css|png|jpg|jpeg|gif|svg|webp|mp4|webm|ogv|woff|woff2|ttf|eot|ico)$/,
+            )
+          ) {
+            // Static assets with fingerprints or static media files
+            res.setHeader(
+              "Cache-Control",
+              "public, max-age=604800, stale-while-revalidate=86400",
+            );
+          } else {
+            res.setHeader("Cache-Control", "public, max-age=3600");
+          }
+        },
+      }),
+    );
 
     // Serve the index file for any non static matching files:
     app.get("*", (_req, res) => {
-      // Set CORS headets, for shared-memory multithreading:
+      // Set CORS headers, for shared-memory multithreading:
       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
       res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      res.setHeader("Cache-Control", "no-cache");
 
       res.sendFile(path.join(staticPath, "index.html"));
     });

@@ -22,13 +22,33 @@ import { SafeAreaOverlay } from '../components/common/SafeAreaOverlay.jsx'
 import { FpsMeter } from '../components/common/FpsMeter.jsx'
 
 import backgroundFootball from '../../assets/backgrounds/football.jpg'
+import backgroundStadium from '../../assets/backgrounds/stadium-match.jpg'
+import backgroundNews from '../../assets/backgrounds/news-studio.jpg'
 import backgroundFireworks from '../../assets/backgrounds/fireworks.jpg'
+import backgroundStage from '../../assets/backgrounds/concert-stage.jpg'
+import backgroundDaytime from '../../assets/backgrounds/daytime-city.jpg'
+import backgroundNight from '../../assets/backgrounds/night-city.jpg'
 import backgroundInterview from '../../assets/backgrounds/interview.jpg'
+import backgroundSmpteBars from '../../assets/backgrounds/smpte-bars.svg'
+
+import loopBroadcastMotion from '../../assets/backgrounds/loop-broadcast-motion.mp4'
+import loopAnimation from '../../assets/backgrounds/loop-animation.mp4'
+import loopNature from '../../assets/backgrounds/loop-nature.mp4'
 
 const BUNDLED_BACKGROUNDS = [
-	{ src: backgroundFootball, label: 'Football' },
-	{ src: backgroundFireworks, label: 'Fireworks' },
-	{ src: backgroundInterview, label: 'Interview' },
+	{ src: backgroundNews, label: 'News Studio', category: 'News', mediaType: 'image' },
+	{ src: backgroundStadium, label: 'Sports Stadium', category: 'Sports', mediaType: 'image' },
+	{ src: backgroundFootball, label: 'Football Pitch', category: 'Sports', mediaType: 'image' },
+	{ src: backgroundDaytime, label: 'Daytime City (Light)', category: 'Light', mediaType: 'image' },
+	{ src: backgroundNight, label: 'Night Skyline (Dark)', category: 'Dark', mediaType: 'image' },
+	{ src: backgroundStage, label: 'Concert Stage (Colorful)', category: 'Colorful', mediaType: 'image' },
+	{ src: backgroundFireworks, label: 'Fireworks (Colorful)', category: 'Colorful', mediaType: 'image' },
+	{ src: backgroundInterview, label: 'TV Interview', category: 'Interview', mediaType: 'image' },
+	{ src: backgroundSmpteBars, label: 'SMPTE Color Bars', category: 'Test Pattern', mediaType: 'image' },
+
+	{ src: loopBroadcastMotion, label: 'Broadcast Motion Loop', category: 'Video', mediaType: 'video' },
+	{ src: loopAnimation, label: 'Animation Loop (Big Buck Bunny)', category: 'Video', mediaType: 'video' },
+	{ src: loopNature, label: 'Nature Live Loop', category: 'Video', mediaType: 'video' },
 ]
 
 const BACKGROUND_STORAGE_KEY = 'graphicTester.background'
@@ -863,13 +883,35 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 										) : background?.type === 'webcam' ? (
 											<WebcamBackground deviceId={background.deviceId} />
 										) : background?.type === 'asset' ? (
-											<img className="background-image" src={background.src} alt="background"></img>
+											background.mediaType === 'video' || (typeof background.src === 'string' && background.src.match(/\.(mp4|webm|ogv)$/i)) ? (
+												<video
+													className="background-image"
+													src={background.src}
+													autoPlay
+													loop
+													muted
+													playsInline
+												/>
+											) : (
+												<img className="background-image" src={background.src} alt={background.label || 'background'} />
+											)
 										) : background?.type === 'local-file' && background.blob ? (
-											<img
-												className="background-image"
-												src={URL.createObjectURL(background.blob)}
-												alt="background"
-											></img>
+											background.mediaType === 'video' || (background.key && background.key.match(/\.(mp4|webm|ogv)$/i)) ? (
+												<video
+													className="background-image"
+													src={URL.createObjectURL(background.blob)}
+													autoPlay
+													loop
+													muted
+													playsInline
+												/>
+											) : (
+												<img
+													className="background-image"
+													src={URL.createObjectURL(background.blob)}
+													alt={background.label || 'background'}
+												/>
+											)
 										) : null}
 
 										{showSafeArea && (
@@ -964,9 +1006,20 @@ function GraphicTesterOptions({
 // Just a simple way to retain the background when switching graphics, restored from localStorage on first load:
 let cacheBackground = loadStoredBackground() ?? { type: 'none' }
 
+function isBackgroundActive(bgItem, currentBackground) {
+	if (!currentBackground) return false
+	if (bgItem.type === 'none') return currentBackground.type === 'none'
+	if (bgItem.type === 'color') return currentBackground.type === 'color' && currentBackground.value === bgItem.value
+	if (bgItem.type === 'asset') return currentBackground.type === 'asset' && currentBackground.src === bgItem.src
+	if (bgItem.type === 'local-file') return currentBackground.type === 'local-file' && currentBackground.key === bgItem.key
+	if (bgItem.type === 'webcam') return currentBackground.type === 'webcam' && currentBackground.deviceId === bgItem.deviceId
+	return false
+}
+
 function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 	const [imageList, setImageList] = React.useState([])
 	const [reloading, setReloading] = React.useState(false)
+	const [selectedCategory, setSelectedCategory] = React.useState('all')
 
 	const [webcams, setWebcams] = React.useState(null)
 	const [webcamError, setWebcamError] = React.useState(null)
@@ -978,36 +1031,39 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 			.then(async () => {
 				await fileHandler.discoverFiles()
 
-				const imageFiles = []
+				const mediaFiles = []
 
 				for (const [key, file] of Object.entries(fileHandler.files)) {
-					if (
-						!(
-							file.handle.name.endsWith('.png') ||
-							file.handle.name.endsWith('.jpg') ||
-							file.handle.name.endsWith('.jpeg') ||
-							file.handle.name.endsWith('.gif') ||
-							file.handle.name.endsWith('.svg') ||
-							file.handle.name.endsWith('.webp')
-						)
-					)
-						continue
+					const name = file.handle?.name?.toLowerCase() || ''
+					const isVideo = name.endsWith('.mp4') || name.endsWith('.webm') || name.endsWith('.ogv')
+					const isImage =
+						name.endsWith('.png') ||
+						name.endsWith('.jpg') ||
+						name.endsWith('.jpeg') ||
+						name.endsWith('.gif') ||
+						name.endsWith('.svg') ||
+						name.endsWith('.webp')
+
+					if (!isImage && !isVideo) continue
 
 					const fileContent = await file.handle.getFile()
 
-					imageFiles.push({
+					mediaFiles.push({
 						key,
 						file,
 						fileContent,
+						mediaType: isVideo ? 'video' : 'image',
 					})
 				}
-				imageFiles.sort((a, b) => a.key.localeCompare(b.key))
+				mediaFiles.sort((a, b) => a.key.localeCompare(b.key))
 
-				setImageList(imageFiles)
-
+				setImageList(mediaFiles)
 				setReloading(false)
 			})
-			.catch(console.error)
+			.catch((err) => {
+				console.error(err)
+				setReloading(false)
+			})
 	}, [])
 
 	// If a previously selected local-file background was restored from storage (without its blob),
@@ -1015,7 +1071,7 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 	React.useEffect(() => {
 		if (background?.type !== 'local-file' || background.blob) return
 		const match = imageList.find((image) => image.key === background.key)
-		if (match) setBackground({ ...background, blob: match.fileContent })
+		if (match) setBackground({ ...background, blob: match.fileContent, mediaType: match.mediaType })
 	}, [imageList, background, setBackground])
 
 	const openWebcamPicker = React.useCallback(async () => {
@@ -1036,97 +1092,175 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 		}
 	}, [])
 
+	const filteredBundled = React.useMemo(() => {
+		if (selectedCategory === 'all') return BUNDLED_BACKGROUNDS
+		if (selectedCategory === 'video') return BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'video')
+		if (selectedCategory === 'image') return BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'image')
+		return BUNDLED_BACKGROUNDS
+	}, [selectedCategory])
+
 	return (
 		<div>
-			{
-				<div className="image-list">
-					<div className="thumbnail" title="Default background" onClick={() => setBackground({ type: 'none' })}>
-						<div
-							className="checkered-bg"
-							style={{
-								width: '10em',
-								height: '10em',
-							}}
-						></div>
-					</div>
-					<div
-						className="thumbnail"
-						title="White background"
-						onClick={() => setBackground({ type: 'color', value: 'white' })}
+			<div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
+				<ButtonGroup size="sm">
+					<Button
+						variant={selectedCategory === 'all' ? 'primary' : 'outline-secondary'}
+						onClick={() => setSelectedCategory('all')}
 					>
-						<div
-							style={{
-								width: '10em',
-								height: '10em',
-								backgroundColor: 'white',
-							}}
-						></div>
-					</div>
-					<div
-						className="thumbnail"
-						title="Black background"
-						onClick={() => setBackground({ type: 'color', value: 'black' })}
+						All ({BUNDLED_BACKGROUNDS.length + 3})
+					</Button>
+					<Button
+						variant={selectedCategory === 'video' ? 'primary' : 'outline-secondary'}
+						onClick={() => setSelectedCategory('video')}
 					>
-						<div
-							style={{
-								width: '10em',
-								height: '10em',
-								backgroundColor: 'black',
-							}}
-						></div>
-					</div>
+						🎬 Video Loops ({BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'video').length})
+					</Button>
+					<Button
+						variant={selectedCategory === 'image' ? 'primary' : 'outline-secondary'}
+						onClick={() => setSelectedCategory('image')}
+					>
+						🖼️ Images ({BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'image').length})
+					</Button>
+				</ButtonGroup>
+			</div>
 
-					{BUNDLED_BACKGROUNDS.map((bg) => (
+			<div className="image-list mb-3">
+				{(selectedCategory === 'all' || selectedCategory === 'image') && (
+					<>
 						<div
-							className="thumbnail"
-							key={bg.src}
-							title={bg.label}
-							onClick={() => setBackground({ type: 'asset', src: bg.src, label: bg.label })}
+							className={`thumbnail ${isBackgroundActive({ type: 'none' }, background) ? 'active' : ''}`}
+							title="Default checkered transparent background"
+							onClick={() => setBackground({ type: 'none' })}
 						>
-							<img src={bg.src}></img>
+							<div className="thumbnail-preview checkered-bg"></div>
+							<div className="thumbnail-label">Checkerboard</div>
 						</div>
-					))}
+						<div
+							className={`thumbnail ${isBackgroundActive({ type: 'color', value: 'white' }, background) ? 'active' : ''}`}
+							title="Solid White background"
+							onClick={() => setBackground({ type: 'color', value: 'white', label: 'Solid White' })}
+						>
+							<div className="thumbnail-preview" style={{ backgroundColor: 'white' }}></div>
+							<div className="thumbnail-label">Solid White</div>
+						</div>
+						<div
+							className={`thumbnail ${isBackgroundActive({ type: 'color', value: 'black' }, background) ? 'active' : ''}`}
+							title="Solid Black background"
+							onClick={() => setBackground({ type: 'color', value: 'black', label: 'Solid Black' })}
+						>
+							<div className="thumbnail-preview" style={{ backgroundColor: 'black' }}></div>
+							<div className="thumbnail-label">Solid Black</div>
+						</div>
+					</>
+				)}
 
-					{imageList.map((image) => {
-						return (
-							<div
-								className="thumbnail"
-								key={image.key}
-								title={image.key}
-								onClick={() =>
-									setBackground({ type: 'local-file', key: image.key, label: image.key, blob: image.fileContent })
-								}
-							>
-								<img src={URL.createObjectURL(image.fileContent)}></img>
+				{filteredBundled.map((bg) => {
+					const isActive = isBackgroundActive({ type: 'asset', src: bg.src }, background)
+					return (
+						<div
+							className={`thumbnail ${isActive ? 'active' : ''}`}
+							key={bg.label}
+							title={`${bg.label} (${bg.mediaType === 'video' ? 'Video Loop' : bg.category})`}
+							onClick={() =>
+								setBackground({
+									type: 'asset',
+									src: bg.src,
+									label: bg.label,
+									mediaType: bg.mediaType,
+								})
+							}
+						>
+							<div className="thumbnail-preview">
+								{bg.mediaType === 'video' ? (
+									<>
+										<video src={bg.src} autoPlay loop muted playsInline />
+										<span
+											className="badge bg-danger position-absolute"
+											style={{ bottom: 3, right: 3, fontSize: '0.62rem', padding: '0.2em 0.4em' }}
+										>
+											🎬 Loop
+										</span>
+									</>
+								) : (
+									<img src={bg.src} alt={bg.label} />
+								)}
 							</div>
-						)
-					})}
-				</div>
-			}
-			{fileHandler.dirHandle ? (
-				<>
-					{imageList.length === 0 ? <div>Click to look for images in your local folder:</div> : null}
+							<div className="thumbnail-label">{bg.label}</div>
+						</div>
+					)
+				})}
 
-					{reloading ? (
-						<Button disabled={true}>🖼️ Looking...</Button>
-					) : (
-						<Button onClick={reloadImages}>🖼️ Look for images</Button>
-					)}
-				</>
-			) : (
-				<OverlayTrigger overlay={<Tooltip>Only available in Local folder mode.</Tooltip>}>
-					<span className="d-inline-block">
-						<Button disabled style={{ pointerEvents: 'none' }}>
-							🖼️ Look for images
-						</Button>
-					</span>
-				</OverlayTrigger>
-			)}{' '}
-			{isLoadingWebcams ? (
-				<Button disabled={true}>🎥 Looking...</Button>
-			) : (
-				<Button onClick={openWebcamPicker}>🎥 Use webcam</Button>
-			)}
+				{imageList.map((media) => {
+					const isActive = isBackgroundActive({ type: 'local-file', key: media.key }, background)
+					return (
+						<div
+							className={`thumbnail ${isActive ? 'active' : ''}`}
+							key={media.key}
+							title={`Local file: ${media.key}`}
+							onClick={() =>
+								setBackground({
+									type: 'local-file',
+									key: media.key,
+									label: media.key,
+									blob: media.fileContent,
+									mediaType: media.mediaType,
+								})
+							}
+						>
+							<div className="thumbnail-preview">
+								{media.mediaType === 'video' ? (
+									<>
+										<video src={URL.createObjectURL(media.fileContent)} autoPlay loop muted playsInline />
+										<span
+											className="badge bg-info text-dark position-absolute"
+											style={{ bottom: 3, right: 3, fontSize: '0.62rem', padding: '0.2em 0.4em' }}
+										>
+											🎬 Video
+										</span>
+									</>
+								) : (
+									<img src={URL.createObjectURL(media.fileContent)} alt={media.key} />
+								)}
+							</div>
+							<div className="thumbnail-label">{media.key}</div>
+						</div>
+					)
+				})}
+			</div>
+
+			<div className="d-flex align-items-center gap-2 flex-wrap">
+				{fileHandler.dirHandle ? (
+					<>
+						{reloading ? (
+							<Button size="sm" variant="outline-light" disabled={true}>
+								🖼️ Looking...
+							</Button>
+						) : (
+							<Button size="sm" variant="outline-light" onClick={reloadImages}>
+								🖼️ Look for local images & videos
+							</Button>
+						)}
+					</>
+				) : (
+					<OverlayTrigger overlay={<Tooltip>Only available in Local folder mode.</Tooltip>}>
+						<span className="d-inline-block">
+							<Button size="sm" variant="outline-light" disabled style={{ pointerEvents: 'none' }}>
+								🖼️ Look for local images & videos
+							</Button>
+						</span>
+					</OverlayTrigger>
+				)}{' '}
+				{isLoadingWebcams ? (
+					<Button size="sm" variant="outline-light" disabled={true}>
+						🎥 Looking...
+					</Button>
+				) : (
+					<Button size="sm" variant="outline-light" onClick={openWebcamPicker}>
+						🎥 Use webcam
+					</Button>
+				)}
+			</div>
+
 			{webcamError && (
 				<div className="alert alert-danger mt-2" role="alert">
 					{webcamError}
@@ -1135,36 +1269,30 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 			{webcams && (
 				<div className="image-list mt-2">
 					{webcams.length === 0 ? (
-						<div>No webcams found.</div>
+						<div className="small text-muted">No webcams found.</div>
 					) : (
-						webcams.map((webcam, i) => (
-							<div
-								className="thumbnail"
-								key={webcam.deviceId || i}
-								title={webcam.label || `Webcam ${i + 1}`}
-								onClick={() => {
-									setBackground({ type: 'webcam', deviceId: webcam.deviceId, label: webcam.label })
-									setWebcams(null)
-								}}
-							>
+						webcams.map((webcam, i) => {
+							const isActive = isBackgroundActive({ type: 'webcam', deviceId: webcam.deviceId }, background)
+							return (
 								<div
-									style={{
-										width: '10em',
-										height: '10em',
-										display: 'flex',
-										alignItems: 'center',
-										justifyContent: 'center',
-										background: '#222',
-										color: 'white',
-										textAlign: 'center',
-										padding: '0.5em',
-										overflow: 'hidden',
+									className={`thumbnail ${isActive ? 'active' : ''}`}
+									key={webcam.deviceId || i}
+									title={webcam.label || `Webcam ${i + 1}`}
+									onClick={() => {
+										setBackground({ type: 'webcam', deviceId: webcam.deviceId, label: webcam.label })
+										setWebcams(null)
 									}}
 								>
-									🎥 {webcam.label || `Webcam ${i + 1}`}
+									<div
+										className="thumbnail-preview d-flex align-items-center justify-content-center text-center p-2"
+										style={{ background: '#222', color: 'white', fontSize: '0.8rem' }}
+									>
+										🎥 {webcam.label || `Webcam ${i + 1}`}
+									</div>
+									<div className="thumbnail-label">{webcam.label || `Webcam ${i + 1}`}</div>
 								</div>
-							</div>
-						))
+							)
+						})
 					)}
 				</div>
 			)}
