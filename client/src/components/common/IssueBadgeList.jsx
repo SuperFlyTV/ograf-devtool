@@ -1,5 +1,14 @@
 import * as React from 'react'
 import { Badge } from 'react-bootstrap'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+	faCircleExclamation,
+	faTriangleExclamation,
+	faCircleInfo,
+	faCheck,
+	faChevronUp,
+	faChevronDown,
+} from '@fortawesome/free-solid-svg-icons'
 import { GraphicIssues } from '../GraphicIssues.jsx'
 import { setupSchemaValidator, testGraphicManifestFileNames, normalizeIssue } from '../../lib/graphic/verify.js'
 import { usePromise } from '../../lib/lib.js'
@@ -135,11 +144,15 @@ export function IssueBadgeList({
 								onClick={handleToggle}
 								title="Click to view error details"
 							>
-								<span className="badge-icon">⛔</span>
+								<span className="badge-icon">
+									<FontAwesomeIcon icon={faCircleExclamation} />
+								</span>
 								<span>
 									{errorCount} {errorCount === 1 ? 'Error' : 'Errors'}
 								</span>
-								<span className="expand-indicator">{isExpanded ? '▲' : '▼'}</span>
+								<span className="expand-indicator">
+									<FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
+								</span>
 							</button>
 						)}
 						{warningCount > 0 && (
@@ -149,11 +162,15 @@ export function IssueBadgeList({
 								onClick={handleToggle}
 								title="Click to view warning details"
 							>
-								<span className="badge-icon">⚠️</span>
+								<span className="badge-icon">
+									<FontAwesomeIcon icon={faTriangleExclamation} />
+								</span>
 								<span>
 									{warningCount} {warningCount === 1 ? 'Warning' : 'Warnings'}
 								</span>
-								<span className="expand-indicator">{isExpanded ? '▲' : '▼'}</span>
+								<span className="expand-indicator">
+									<FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
+								</span>
 							</button>
 						)}
 						{infoCount > 0 && errorCount === 0 && warningCount === 0 && (
@@ -163,11 +180,15 @@ export function IssueBadgeList({
 								onClick={handleToggle}
 								title="Click to view notices"
 							>
-								<span className="badge-icon">ℹ️</span>
+								<span className="badge-icon">
+									<FontAwesomeIcon icon={faCircleInfo} />
+								</span>
 								<span>
 									{infoCount} {infoCount === 1 ? 'Notice' : 'Notices'}
 								</span>
-								<span className="expand-indicator">{isExpanded ? '▲' : '▼'}</span>
+								<span className="expand-indicator">
+									<FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
+								</span>
 							</button>
 						)}
 					</>
@@ -178,9 +199,13 @@ export function IssueBadgeList({
 						onClick={handleToggle}
 						title="Click to view verification details or run in-depth test"
 					>
-						<span className="badge-icon">✓</span>
+						<span className="badge-icon">
+							<FontAwesomeIcon icon={faCheck} />
+						</span>
 						<span>Valid</span>
-						<span className="expand-indicator">{isExpanded ? '▲' : '▼'}</span>
+						<span className="expand-indicator">
+							<FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
+						</span>
 					</button>
 				)}
 			</div>

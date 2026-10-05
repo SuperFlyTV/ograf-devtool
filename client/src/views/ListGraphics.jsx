@@ -29,6 +29,8 @@ import {
 	faCheck,
 	faRotateRight,
 	faTriangleExclamation,
+	faClock,
+	faFolderOpen,
 } from '@fortawesome/free-solid-svg-icons'
 
 function formatLastModified(timestamp) {
@@ -231,7 +233,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 			try {
 				for (const graphic of graphicsToProcess) {
 					if (abortRef.current) {
-						appendLog('🛑 Generation cancelled by user.')
+						appendLog('[Cancelled] Generation cancelled by user.')
 						break
 					}
 
@@ -280,7 +282,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 						})
 
 						if (abortRef.current) {
-							appendLog('🛑 Generation cancelled.')
+							appendLog('[Cancelled] Generation cancelled.')
 							break
 						}
 
@@ -976,7 +978,10 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 										)}
 
 										<div className="card-footer-row">
-											<span className="card-date">🕒 {formatLastModified(graphic.lastModified)}</span>
+											<span className="card-date">
+												<FontAwesomeIcon icon={faClock} className="me-1 text-muted" />
+												{formatLastModified(graphic.lastModified)}
+											</span>
 											<div className="d-flex gap-1 align-items-center">
 												{isGeneratorOpen && (
 													<div onClick={(e) => e.stopPropagation()}>
@@ -1008,7 +1013,9 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 				) : (
 					/* --- Empty State --- */
 					<div className="graphics-empty-state">
-						<span className="empty-icon">{searchQuery ? '🔎' : '📂'}</span>
+						<span className="empty-icon">
+							<FontAwesomeIcon icon={searchQuery ? faMagnifyingGlass : faFolderOpen} />
+						</span>
 						<h2 className="empty-title">
 							{searchQuery ? 'No matching graphics found' : 'No graphics found in folder'}
 						</h2>

@@ -121,7 +121,7 @@ export function GraphicControlRealTime({
 									<div className="mb-3">
 										<ButtonGroup className="w-100">
 											<Button
-												variant="success"
+												variant="outline-primary"
 												className="fw-semibold"
 												onClick={() => {
 													issueTracker.clear()
@@ -145,7 +145,7 @@ export function GraphicControlRealTime({
 												Play
 											</Button>
 											<Button
-												variant="danger"
+												variant="outline-primary"
 												className="fw-semibold"
 												onClick={() => {
 													issueTracker.clear()

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { Link } from 'react-router'
 import { Overlay, Popover, Button, Spinner, Badge } from 'react-bootstrap'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faBolt, faGear, faFilm } from '@fortawesome/free-solid-svg-icons'
+import { faBolt, faGear, faFilm, faImage, faCamera } from '@fortawesome/free-solid-svg-icons'
 import { graphicResourcePath } from '../../lib/lib.js'
 import { fileHandler } from '../../FileHandler.js'
 import { generateThumbnailsForGraphic } from '../../lib/ThumbnailGenerator.js'
@@ -318,7 +318,10 @@ export function ThumbnailPreview({
 					>
 						<Popover id={`popover-thumb-${encodeURIComponent(alt)}`} className="thumbnail-hover-popover">
 							<Popover.Header className="thumb-popover-header">
-								<span className="thumb-popover-title">🖼️ {alt}</span>
+								<span className="thumb-popover-title">
+									<FontAwesomeIcon icon={faImage} className="me-1" />
+									{alt}
+								</span>
 								{allThumbnails.length > 1 && (
 									<span className="thumb-count-badge">{allThumbnails.length} thumbnails</span>
 								)}
@@ -455,7 +458,10 @@ export function ThumbnailPreview({
 						className="thumbnail-hover-popover no-thumb-popover"
 					>
 						<Popover.Header className="thumb-popover-header">
-							<span className="thumb-popover-title">🖼️ {alt}</span>
+							<span className="thumb-popover-title">
+								<FontAwesomeIcon icon={faImage} className="me-1" />
+								{alt}
+							</span>
 							<span className="thumb-count-badge no-thumb-badge">No Thumbnail</span>
 						</Popover.Header>
 						<Popover.Body className="thumb-popover-body">
@@ -533,7 +539,9 @@ export function ThumbnailPreview({
 				>
 					<div className="thumbnail-card-aspect no-thumbnail-box card-no-thumb">
 						<div className="no-thumb-content">
-							<span className="no-thumb-icon">🖼️</span>
+							<span className="no-thumb-icon">
+								<FontAwesomeIcon icon={faImage} />
+							</span>
 							<span className="no-thumb-title">No thumbnail</span>
 						</div>
 					</div>
@@ -553,7 +561,9 @@ export function ThumbnailPreview({
 				onMouseLeave={disableHover ? undefined : handleMouseLeave}
 			>
 				<div className="no-thumb-table-box" title="No thumbnail available (hover for options)">
-					<span className="no-thumb-icon-sm">📷</span>
+					<span className="no-thumb-icon-sm">
+						<FontAwesomeIcon icon={faCamera} />
+					</span>
 					<span className="no-thumb-text-sm">No thumbnail</span>
 				</div>
 			</div>

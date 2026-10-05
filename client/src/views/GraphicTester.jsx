@@ -21,6 +21,15 @@ import { getDefaultDataFromSchema } from 'ograf-form'
 import { TopBanner } from '../components/common/TopBanner.jsx'
 import { SafeAreaOverlay } from '../components/common/SafeAreaOverlay.jsx'
 import { FpsMeter } from '../components/common/FpsMeter.jsx'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+	faArrowLeft,
+	faImage,
+	faFilm,
+	faVideo,
+	faCamera,
+	faRotateRight,
+} from '@fortawesome/free-solid-svg-icons'
 
 import backgroundFootball from '../../assets/backgrounds/football.jpg'
 import backgroundStadium from '../../assets/backgrounds/stadium-match.jpg'
@@ -118,7 +127,10 @@ export function GraphicTester({ graphicsList, graphicsFolderName, graphicsSource
 					<p className="text-danger">No Graphic found for path: {graphicId}</p>
 					<p>
 						<Link to="/">
-							<Button variant="outline-light">👈 Back to list</Button>
+							<Button variant="outline-light">
+								<FontAwesomeIcon icon={faArrowLeft} className="me-1" />
+								Back to list
+							</Button>
 						</Link>
 					</p>
 				</div>
@@ -1045,7 +1057,8 @@ function GraphicTesterOptions({
 					setChangeBackground(!changeBackground)
 				}}
 			>
-				🖼️ Background
+				<FontAwesomeIcon icon={faImage} className="me-1" />
+				Background
 			</Button>
 
 			<Button
@@ -1187,13 +1200,15 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 						variant={selectedCategory === 'video' ? 'primary' : 'outline-secondary'}
 						onClick={() => setSelectedCategory('video')}
 					>
-						🎬 Video Loops ({BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'video').length})
+						<FontAwesomeIcon icon={faFilm} className="me-1" />
+						Video Loops ({BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'video').length})
 					</Button>
 					<Button
 						variant={selectedCategory === 'image' ? 'primary' : 'outline-secondary'}
 						onClick={() => setSelectedCategory('image')}
 					>
-						🖼️ Images ({BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'image').length})
+						<FontAwesomeIcon icon={faImage} className="me-1" />
+						Images ({BUNDLED_BACKGROUNDS.filter((b) => b.mediaType === 'image').length})
 					</Button>
 				</ButtonGroup>
 			</div>
@@ -1252,7 +1267,8 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 											className="badge bg-danger position-absolute"
 											style={{ bottom: 3, right: 3, fontSize: '0.62rem', padding: '0.2em 0.4em' }}
 										>
-											🎬 Loop
+											<FontAwesomeIcon icon={faFilm} className="me-1" />
+											Loop
 										</span>
 									</>
 								) : (
@@ -1286,10 +1302,11 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 									<>
 										<video src={URL.createObjectURL(media.fileContent)} autoPlay loop muted playsInline />
 										<span
-											className="badge bg-info text-dark position-absolute"
+											className="badge bg-secondary position-absolute"
 											style={{ bottom: 3, right: 3, fontSize: '0.62rem', padding: '0.2em 0.4em' }}
 										>
-											🎬 Video
+											<FontAwesomeIcon icon={faVideo} className="me-1" />
+											Video
 										</span>
 									</>
 								) : (
@@ -1307,11 +1324,13 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 					<>
 						{reloading ? (
 							<Button size="sm" variant="outline-light" disabled={true}>
-								🖼️ Looking...
+								<FontAwesomeIcon icon={faRotateRight} spin className="me-1" />
+								Scanning...
 							</Button>
 						) : (
 							<Button size="sm" variant="outline-light" onClick={reloadImages}>
-								🖼️ Look for local images & videos
+								<FontAwesomeIcon icon={faImage} className="me-1" />
+								Scan local media
 							</Button>
 						)}
 					</>
@@ -1319,18 +1338,21 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 					<OverlayTrigger overlay={<Tooltip>Only available in Local folder mode.</Tooltip>}>
 						<span className="d-inline-block">
 							<Button size="sm" variant="outline-light" disabled style={{ pointerEvents: 'none' }}>
-								🖼️ Look for local images & videos
+								<FontAwesomeIcon icon={faImage} className="me-1" />
+								Scan local media
 							</Button>
 						</span>
 					</OverlayTrigger>
 				)}{' '}
 				{isLoadingWebcams ? (
 					<Button size="sm" variant="outline-light" disabled={true}>
-						🎥 Looking...
+						<FontAwesomeIcon icon={faCamera} className="me-1" />
+						Connecting...
 					</Button>
 				) : (
 					<Button size="sm" variant="outline-light" onClick={openWebcamPicker}>
-						🎥 Use webcam
+						<FontAwesomeIcon icon={faCamera} className="me-1" />
+						Use webcam
 					</Button>
 				)}
 			</div>
@@ -1361,7 +1383,8 @@ function GraphicTesterOptionsSetBackground({ background, setBackground }) {
 										className="thumbnail-preview d-flex align-items-center justify-content-center text-center p-2"
 										style={{ background: '#222', color: 'white', fontSize: '0.8rem' }}
 									>
-										🎥 {webcam.label || `Webcam ${i + 1}`}
+										<FontAwesomeIcon icon={faCamera} className="me-1" />
+										{webcam.label || `Webcam ${i + 1}`}
 									</div>
 									<div className="thumbnail-label">{webcam.label || `Webcam ${i + 1}`}</div>
 								</div>

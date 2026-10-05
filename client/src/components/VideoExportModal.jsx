@@ -16,6 +16,18 @@ import { isHtmlInCanvasSupported } from '../lib/frameCapture.js'
 import { renderVideoFrames } from '../lib/VideoRenderer.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { createGifWriter } from '../lib/encoders/gifEncoder.js'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+	faVideo,
+	faBox,
+	faImage,
+	faFilm,
+	faCopy,
+	faCheck,
+	faTriangleExclamation,
+	faCircleInfo,
+	faStop,
+} from '@fortawesome/free-solid-svg-icons'
 
 // Register ProRes decoder extension for Mediabunny
 try {
@@ -722,7 +734,10 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 			dialogClassName="custom-dark-modal video-export-dark-modal"
 		>
 			<Modal.Header closeButton={!isExporting} className="modal-header-custom">
-				<Modal.Title className="modal-title-custom">🎥 Export Timeline as Video</Modal.Title>
+				<Modal.Title className="modal-title-custom">
+					<FontAwesomeIcon icon={faVideo} className="me-2 text-muted" />
+					Export Timeline as Video
+				</Modal.Title>
 			</Modal.Header>
 			<Modal.Body className="modal-body-custom">
 				{errorText && <Alert variant="danger">{errorText}</Alert>}
@@ -739,7 +754,17 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 								</div>
 							</div>
 							<Button variant="outline-dark" size="sm" onClick={copyFlagUrl}>
-								{copiedFlag ? '✅ Copied URL!' : '📋 Copy chrome://flags URL'}
+								{copiedFlag ? (
+									<>
+										<FontAwesomeIcon icon={faCheck} className="me-1 text-success" />
+										Copied URL!
+									</>
+								) : (
+									<>
+										<FontAwesomeIcon icon={faCopy} className="me-1" />
+										Copy chrome://flags URL
+									</>
+								)}
 							</Button>
 						</div>
 						<div className="small text-muted border-top pt-1">
@@ -759,12 +784,23 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 				{/* ── Video Player / ZIP / GIF Preview after render ── */}
 				{renderedVideos && !isExporting && (
 					<div className="mb-4 border border-secondary-subtle rounded p-3 bg-body-tertiary">
-						<h6 className="fw-bold mb-3">
-							{renderedVideos.isZip
-								? '📦 Exported ZIP Preview'
-								: renderedVideos.isGif
-								? '🖼️ Exported GIF Preview'
-								: '🎬 Exported Video Preview'}
+						<h6 className="fw-bold mb-3 d-flex align-items-center gap-2">
+							{renderedVideos.isZip ? (
+								<>
+									<FontAwesomeIcon icon={faBox} />
+									Exported ZIP Preview
+								</>
+							) : renderedVideos.isGif ? (
+								<>
+									<FontAwesomeIcon icon={faImage} />
+									Exported GIF Preview
+								</>
+							) : (
+								<>
+									<FontAwesomeIcon icon={faFilm} />
+									Exported Video Preview
+								</>
+							)}
 						</h6>
 
 						{renderedVideos.isZip ? (
@@ -1083,7 +1119,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 
 					{isServerConvert && (
 						<Alert variant="info" className="py-2 small mb-3">
-							ℹ️{' '}
+							<FontAwesomeIcon icon={faCircleInfo} className="me-2 text-info" />
 							<strong>Server-side {isServerProres ? 'ProRes 4444' : 'QuickTime Animation (QTRLE)'} Conversion:</strong>{' '}
 							The graphic video is first rendered in the browser, then sent to the server to be converted into a
 							QuickTime (<code>.mov</code>) file.
@@ -1092,7 +1128,8 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 
 					{!isPngSequence && !isGif && !isServerConvert && codecSupport[selectedCodec] === false && (
 						<Alert variant="warning" className="py-2 small">
-							⚠️ Your browser / GPU reported that it may not support encoding with{' '}
+							<FontAwesomeIcon icon={faTriangleExclamation} className="me-2 text-warning" />
+							Your browser / GPU reported that it may not support encoding with{' '}
 							<strong>{CODEC_METADATA[selectedCodec]?.label || selectedCodec.toUpperCase()}</strong>. If the export
 							fails, please select another codec (such as VP9 or H.264).
 						</Alert>
@@ -1282,10 +1319,26 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 			</Modal.Body>
 			<Modal.Footer className="modal-footer-custom">
 				<Button variant={isExporting ? 'danger' : 'secondary'} onClick={isExporting ? handleCancel : onHide}>
-					{isExporting ? '🛑 Cancel Render' : renderedVideos ? 'Close' : 'Cancel'}
+					{isExporting ? (
+						<>
+							<FontAwesomeIcon icon={faStop} className="me-2" />
+							Cancel Render
+						</>
+					) : renderedVideos ? (
+						'Close'
+					) : (
+						'Cancel'
+					)}
 				</Button>
 				<Button variant="primary" onClick={handleExport} disabled={isExporting}>
-					{isExporting ? 'Exporting…' : `🎥 Export ${currentExt.toUpperCase()}`}
+					{isExporting ? (
+						'Exporting…'
+					) : (
+						<>
+							<FontAwesomeIcon icon={faVideo} className="me-2" />
+							Export {currentExt.toUpperCase()}
+						</>
+					)}
 				</Button>
 			</Modal.Footer>
 		</Modal>

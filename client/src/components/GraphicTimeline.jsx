@@ -2,6 +2,8 @@ import * as React from 'react'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { Button, ButtonGroup, Modal, Form, Badge } from 'react-bootstrap'
 import { OGrafForm } from '../lib/GDD/ograf-form.jsx'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faVideo, faLock, faGear, faPen } from '@fortawesome/free-solid-svg-icons'
 
 export function GraphicTimeline({
 	rendererRef,
@@ -488,7 +490,8 @@ export function GraphicTimeline({
 							className="fw-semibold btn-export-video"
 							onClick={onOpenExportVideo}
 						>
-							🎥 Export Video
+							<FontAwesomeIcon icon={faVideo} className="me-1" />
+							Export Video
 						</Button>
 					)}
 				</div>
@@ -698,7 +701,7 @@ export function GraphicTimeline({
 											}
 										>
 											<span style={{ fontSize: '0.65rem', color: '#fff', lineHeight: 1, opacity: 0.9 }}>
-												{isInitialData ? '🔒' : '⋮'}
+												{isInitialData ? <FontAwesomeIcon icon={faLock} /> : '⋮'}
 											</span>
 										</div>
 
@@ -819,7 +822,17 @@ function EventEditModal({ show, event, duration, manifest, onHide, onSave }) {
 		>
 			<Modal.Header closeButton className="modal-header-custom">
 				<Modal.Title className="modal-title-custom">
-					{type === 'initialData' ? '⚙️ Edit Initial Graphic Data' : '✏️ Edit Timeline Event'}
+					{type === 'initialData' ? (
+						<>
+							<FontAwesomeIcon icon={faGear} className="me-2 text-muted" />
+							Edit Initial Graphic Data
+						</>
+					) : (
+						<>
+							<FontAwesomeIcon icon={faPen} className="me-2 text-muted" />
+							Edit Timeline Event
+						</>
+					)}
 				</Modal.Title>
 			</Modal.Header>
 			<Modal.Body className="modal-body-custom">

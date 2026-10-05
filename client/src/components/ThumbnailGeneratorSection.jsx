@@ -14,6 +14,7 @@ import {
 	faCircleExclamation,
 	faTriangleExclamation,
 	faFilm,
+	faGear,
 } from '@fortawesome/free-solid-svg-icons'
 import { isHtmlInCanvasSupported } from '../lib/frameCapture.js'
 
@@ -252,7 +253,10 @@ export function ThumbnailGeneratorSection({
 					<div className="col-12 col-lg-5 col-xl-4">
 						<div className="generator-settings-panel">
 							<div className="settings-panel-header">
-								<span className="settings-title">⚙️ Generation Settings</span>
+								<span className="settings-title">
+									<FontAwesomeIcon icon={faGear} className="me-1 text-muted" />
+									Generation settings
+								</span>
 								<Button
 									variant="link"
 									size="sm"

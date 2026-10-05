@@ -1,6 +1,16 @@
 import * as React from 'react'
 import { Modal, Button, Form, ProgressBar, Alert, Spinner, Badge } from 'react-bootstrap'
 import { formatDiscoveryProgress, isSamplePackUrl } from '../RemoteHandler'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+	faHourglassHalf,
+	faTriangleExclamation,
+	faGlobe,
+	faCircleXmark,
+	faLock,
+	faPen,
+	faRotateRight,
+} from '@fortawesome/free-solid-svg-icons'
 
 export function getRemoteUrlType(url) {
 	if (!url) return { type: 'generic', label: 'Remote URL', variant: 'secondary' }
@@ -52,9 +62,9 @@ export function RemoteLoadModal({
 	}
 
 	const renderHeaderIcon = () => {
-		if (mode === 'loading') return '⏳'
-		if (mode === 'error') return '⚠️'
-		return '🌐'
+		if (mode === 'loading') return <FontAwesomeIcon icon={faHourglassHalf} className="me-2 text-muted" />
+		if (mode === 'error') return <FontAwesomeIcon icon={faTriangleExclamation} className="me-2 text-warning" />
+		return <FontAwesomeIcon icon={faGlobe} className="me-2 text-muted" />
 	}
 
 	// Calculate percentage for progress bar
@@ -262,7 +272,9 @@ export function RemoteLoadModal({
 						{/* Error alert */}
 						<Alert variant="danger" className="mb-3">
 							<div className="d-flex gap-2 align-items-start">
-								<span className="fs-5">❌</span>
+								<span className="fs-5">
+									<FontAwesomeIcon icon={faCircleXmark} />
+								</span>
 								<div>
 									<strong>Error loading remote graphics:</strong>
 									<div className="mt-1 text-break">
@@ -276,7 +288,9 @@ export function RemoteLoadModal({
 						{isRateLimited && (
 							<div className="rate-limit-card p-3 rounded mb-3 border border-warning bg-warning bg-opacity-10">
 								<div className="d-flex gap-2 align-items-start mb-2">
-									<span className="fs-5">🔒</span>
+									<span className="fs-5">
+										<FontAwesomeIcon icon={faLock} />
+									</span>
 									<div>
 										<strong className="text-warning">GitHub Rate Limit Exceeded</strong>
 										<p className="small mb-0 mt-1">
@@ -362,14 +376,16 @@ export function RemoteLoadModal({
 				{mode === 'error' && (
 					<div className="d-flex justify-content-between w-100 align-items-center">
 						<Button variant="outline-secondary" size="sm" onClick={onSwitchToInput} disabled={isSigningIn}>
-							✏️ Edit URL
+							<FontAwesomeIcon icon={faPen} className="me-1" />
+							Edit URL
 						</Button>
 						<div className="d-flex gap-2">
 							<Button variant="secondary" size="sm" onClick={onClose} disabled={isSigningIn}>
 								Close
 							</Button>
 							<Button variant="primary" size="sm" onClick={onRetry} disabled={isSigningIn}>
-								🔄 Try Again
+								<FontAwesomeIcon icon={faRotateRight} className="me-1" />
+								Try Again
 							</Button>
 						</div>
 					</div>

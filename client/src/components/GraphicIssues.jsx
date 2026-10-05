@@ -7,9 +7,11 @@ import {
 	normalizeIssue,
 } from '../lib/graphic/verify.js'
 import { applyAutoFix } from '../lib/graphic/autoFix.js'
-import { usePromise } from '../lib/lib.js'
 import { ResourceProvider } from '../renderer/ResourceProvider.js'
 import { Button } from 'react-bootstrap'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faBolt, faCheck, faCircleCheck, faCircleXmark, faCircleInfo } from '@fortawesome/free-solid-svg-icons'
+import { usePromise } from '../lib/lib.js'
 
 export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 	const [manifestIssues, setManifestIssues] = React.useState([])
@@ -29,9 +31,7 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 			.then((elementName) => {
 				const element = document.createElement(elementName)
 				if (manifest) {
-					const modIssues = (validateGraphicModule(element, manifest) || []).map((i) =>
-						normalizeIssue(i, 'error')
-					)
+					const modIssues = (validateGraphicModule(element, manifest) || []).map((i) => normalizeIssue(i, 'error'))
 					setGraphicModuleErrors(modIssues)
 				} else {
 					setGraphicModuleErrors([])
@@ -39,9 +39,7 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 			})
 			.catch((e) => {
 				console.error(e)
-				setGraphicModuleErrors([
-					normalizeIssue(`Error loading graphic: ${e.message || e}`, 'error'),
-				])
+				setGraphicModuleErrors([normalizeIssue(`Error loading graphic: ${e.message || e}`, 'error')])
 			})
 	}, [graphic?.path, manifest])
 
@@ -185,7 +183,8 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 			{fixableIssues.length > 1 && (
 				<div className="d-flex align-items-center justify-content-between p-2 mb-2 rounded bg-primary-subtle border border-primary-subtle flex-wrap gap-2">
 					<span className="small text-primary-emphasis fw-semibold">
-						⚡ {fixableIssues.length} issues can be automatically fixed
+						<FontAwesomeIcon icon={faBolt} className="me-1" />
+						{fixableIssues.length} issues can be automatically fixed
 					</span>
 					<Button
 						variant="primary"
@@ -194,7 +193,14 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 						disabled={fixingIssueId !== null}
 						onClick={handleFixAll}
 					>
-						{fixingIssueId === 'ALL' ? 'Fixing All…' : `⚡ Fix All (${fixableIssues.length})`}
+						{fixingIssueId === 'ALL' ? (
+							'Fixing All…'
+						) : (
+							<>
+								<FontAwesomeIcon icon={faBolt} className="me-1" />
+								Fix All ({fixableIssues.length})
+							</>
+						)}
 					</Button>
 				</div>
 			)}
@@ -216,7 +222,14 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 										onClick={() => handleApplyFix(issue)}
 										title={issue.fixLabel || 'Auto-fix'}
 									>
-										{fixingIssueId === (issue.fixId || issue.id || issue.message) ? 'Fixing…' : `⚡ ${issue.fixLabel || 'Fix'}`}
+										{fixingIssueId === (issue.fixId || issue.id || issue.message) ? (
+											'Fixing…'
+										) : (
+											<>
+												<FontAwesomeIcon icon={faBolt} className="me-1" />
+												{issue.fixLabel || 'Fix'}
+											</>
+										)}
 									</Button>
 								)}
 							</li>
@@ -256,7 +269,14 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 										onClick={() => handleApplyFix(issue)}
 										title={issue.fixLabel || 'Auto-fix'}
 									>
-										{fixingIssueId === (issue.fixId || issue.id || issue.message) ? 'Fixing…' : `⚡ ${issue.fixLabel || 'Fix'}`}
+										{fixingIssueId === (issue.fixId || issue.id || issue.message) ? (
+											'Fixing…'
+										) : (
+											<>
+												<FontAwesomeIcon icon={faBolt} className="me-1" />
+												{issue.fixLabel || 'Fix'}
+											</>
+										)}
 									</Button>
 								)}
 							</li>
@@ -282,7 +302,14 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 										onClick={() => handleApplyFix(issue)}
 										title={issue.fixLabel || 'Auto-fix'}
 									>
-										{fixingIssueId === (issue.fixId || issue.id || issue.message) ? 'Fixing…' : `⚡ ${issue.fixLabel || 'Fix'}`}
+										{fixingIssueId === (issue.fixId || issue.id || issue.message) ? (
+											'Fixing…'
+										) : (
+											<>
+												<FontAwesomeIcon icon={faBolt} className="me-1" />
+												{issue.fixLabel || 'Fix'}
+											</>
+										)}
 									</Button>
 								)}
 							</li>
@@ -294,7 +321,10 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 			{/* No errors state */}
 			{!hasErrors && !hasWarnings && (
 				<div className="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 p-2 small mb-2">
-					<span className="fw-medium">✓ No errors found in manifest or code</span>
+					<span className="fw-medium">
+						<FontAwesomeIcon icon={faCheck} className="me-1 text-success" />
+						No errors found in manifest or code
+					</span>
 					<Button variant="outline-light" size="sm" className="btn-test-indepth" onClick={() => runGraphicTest()}>
 						Run in-depth test
 					</Button>
@@ -314,11 +344,22 @@ export function GraphicIssues({ manifest, graphic, onIssuesChanged }) {
 				>
 					<div className="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom border-secondary-subtle">
 						<span className="fw-bold fs-7">
-							{graphicModuleTestErrorLog.status === true
-								? '✅ In-Depth Test Passed'
-								: graphicModuleTestErrorLog.status === false
-								? '❌ In-Depth Test Failed'
-								: 'ℹ️ Test In Progress'}
+							{graphicModuleTestErrorLog.status === true ? (
+								<>
+									<FontAwesomeIcon icon={faCircleCheck} className="text-success me-1" />
+									In-Depth Test Passed
+								</>
+							) : graphicModuleTestErrorLog.status === false ? (
+								<>
+									<FontAwesomeIcon icon={faCircleXmark} className="text-danger me-1" />
+									In-Depth Test Failed
+								</>
+							) : (
+								<>
+									<FontAwesomeIcon icon={faCircleInfo} className="text-info me-1" />
+									Test In Progress
+								</>
+							)}
 						</span>
 						<Button
 							variant="outline-secondary"

@@ -1,6 +1,8 @@
 import * as React from 'react'
 import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap'
 import { Link } from 'react-router'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faFolder, faGlobe, faBox, faRotateRight, faFolderOpen } from '@fortawesome/free-solid-svg-icons'
 
 export function WorkspaceHeader({
 	graphicsFolderName,
@@ -14,7 +16,7 @@ export function WorkspaceHeader({
 	const isRemote = graphicsSource === 'remote'
 	const isSample = graphicsFolderName?.toLowerCase().includes('sample')
 
-	const sourceIcon = isSample ? '🚀' : isRemote ? '🌐' : '📁'
+	const sourceIcon = isSample ? faBox : isRemote ? faGlobe : faFolder
 	const sourceLabel = isSample ? 'Sample Pack' : isRemote ? 'Remote URL' : 'Local Folder'
 
 	return (
@@ -26,7 +28,9 @@ export function WorkspaceHeader({
 							isSample ? 'source-sample' : isRemote ? 'source-remote' : 'source-local'
 						}`}
 					>
-						<span className="source-icon">{sourceIcon}</span>
+						<span className="source-icon">
+							<FontAwesomeIcon icon={sourceIcon} />
+						</span>
 						<span className="source-label">{sourceLabel}</span>
 					</span>
 					<h1 className="workspace-folder-name" title={graphicsFolderName}>
@@ -43,7 +47,8 @@ export function WorkspaceHeader({
 							onClick={onRefresh}
 							title="Refresh list of graphics from disk / remote"
 						>
-							🔄 Refresh
+							<FontAwesomeIcon icon={faRotateRight} className="me-1" />
+							Refresh
 						</Button>
 					)}
 					{onCloseFolder && (
@@ -54,7 +59,8 @@ export function WorkspaceHeader({
 							onClick={onCloseFolder}
 							title="Close current folder and pick another folder or remote URL"
 						>
-							📂 Switch Folder
+							<FontAwesomeIcon icon={faFolderOpen} className="me-1" />
+							Switch folder
 						</Button>
 					)}
 					{actionButtons}

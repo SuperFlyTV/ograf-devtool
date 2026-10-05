@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Link } from 'react-router'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowLeft } from '@fortawesome/free-solid-svg-icons'
+import { faArrowLeft, faFolder, faGlobe, faBox } from '@fortawesome/free-solid-svg-icons'
 import superFlyLogoUrl from '../../assets/SuperFly.tv_Logo_2020_v02.png'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -56,7 +56,7 @@ export function TopBanner({
 	// Workspace / Sub-page header with breadcrumbs, navigation, and theme toggle
 	const isRemote = graphicsSource === 'remote'
 	const isSample = folderName?.toLowerCase().includes('sample')
-	const sourceIcon = isSample ? '🚀' : isRemote ? '🌐' : '📁'
+	const sourceIcon = isSample ? faBox : isRemote ? faGlobe : faFolder
 	const sourceLabel = isSample ? 'Sample Pack' : isRemote ? 'Remote URL' : 'Local Folder'
 
 	return (
@@ -92,7 +92,9 @@ export function TopBanner({
 							isSample ? 'source-sample' : isRemote ? 'source-remote' : 'source-local'
 						}`}
 					>
-						<span className="badge-icon">{sourceIcon}</span>
+						<span className="badge-icon">
+							<FontAwesomeIcon icon={sourceIcon} />
+						</span>
 						<span className="badge-text">{sourceLabel}</span>
 					</span>
 				)}
