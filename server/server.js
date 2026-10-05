@@ -264,10 +264,10 @@ function startServer(port, devMode) {
         (req.path.includes("webp")
           ? "webp"
           : req.path.includes("gif")
-          ? "gif"
-          : req.path.includes("prores")
-          ? "prores"
-          : "prores")
+            ? "gif"
+            : req.path.includes("prores")
+              ? "prores"
+              : "prores")
       ).toLowerCase();
 
       const isWebp = requestedFormat === "webp";
@@ -295,10 +295,10 @@ function startServer(port, devMode) {
         const formatName = isWebp
           ? "Animated WebP"
           : isGif
-          ? "Animated GIF"
-          : isQtrle
-          ? "QuickTime Animation (QTRLE)"
-          : "ProRes 4444";
+            ? "Animated GIF"
+            : isQtrle
+              ? "QuickTime Animation (QTRLE)"
+              : "ProRes 4444";
         console.log(
           `[FFmpeg] Converting WebM (${bodyBuffer.length} bytes) to ${formatName} using ${ffmpegExecutable}...`,
         );
@@ -380,11 +380,7 @@ function startServer(port, devMode) {
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.setHeader(
           "Content-Type",
-          isWebp
-            ? "image/webp"
-            : isGif
-            ? "image/gif"
-            : "video/quicktime",
+          isWebp ? "image/webp" : isGif ? "image/gif" : "video/quicktime",
         );
         res.setHeader(
           "Content-Disposition",
@@ -440,7 +436,7 @@ function startServer(port, devMode) {
     app.get("*", (_req, res) => {
       // Set CORS headers, for shared-memory multithreading:
       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      // res.setHeader("Cross-Origin-Embedder-Policy", "require-corp"); // Cannot enable this, as it breaks fetching ografs from an external source
       res.setHeader("Cache-Control", "no-cache");
 
       res.sendFile(path.join(staticPath, "index.html"));
@@ -459,7 +455,7 @@ function startServer(port, devMode) {
 
           // Set CORS headets, for shared-memory multithreading:
           res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          // res.setHeader("Cross-Origin-Embedder-Policy", "require-corp"); // Cannot enable this, as it breaks fetching ografs from an external source
 
           res.type(blob.type);
           res.send(buffer);
