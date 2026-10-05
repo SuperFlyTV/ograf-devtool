@@ -227,8 +227,8 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 					<div className="hero-brand">
 						<img src={ografLogoUrl} alt="OGraf Logo" className="hero-logo" />
 						<div className="hero-title-group">
-							<h1>OGraf DevTool</h1>
-							<p className="hero-subtitle">View OGrafs, Validate OGrafs, export OGrafs to Video Files, and more!</p>
+							<h1 alt="OGraf DevTool">DevTool</h1>
+							<p className="hero-subtitle">View, Validate, and Export OGrafs to Video Files!</p>
 						</div>
 					</div>
 					<p className="hero-lead">
@@ -267,20 +267,20 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 
 				{/* 3 Primary Action Cards */}
 				<section className="dashboard-actions-section">
-					<h2 className="section-heading">Get Started</h2>
+					<h2 className="section-heading">Get started</h2>
 					<div className="actions-grid">
 						{/* Card 1: Local Folder */}
 						<div className={`action-card local-card ${!('showDirectoryPicker' in window) ? 'disabled' : ''}`}>
 							<div className="action-card-header">
 								<div className="action-icon">📁</div>
 								<div>
-									<h3 className="action-title">Open Local Folder</h3>
+									<h3 className="action-title">Local folder</h3>
 									<span className="action-tagline">
-										{'showDirectoryPicker' in window ? 'On your local hard drive' : 'Not supported in this browser'}
+										{'showDirectoryPicker' in window ? 'Direct access on local drive' : 'Not supported in this browser'}
 									</span>
 								</div>
 							</div>
-							<p className="action-desc">View and edit OGrafs directly on your computers hard drive.</p>
+							<p className="action-desc">View and edit graphics directly on your computer.</p>
 							<div
 								className="dropzone-box"
 								onClick={() => {
@@ -302,7 +302,7 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 									<span className="dropzone-text">
 										{'showDirectoryPicker' in window ? (
 											<>
-												<strong>Drag & drop folder with OGrafs here</strong>
+												<strong>Drop graphics folder here</strong>
 											</>
 										) : (
 											<strong>Directory access unavailable</strong>
@@ -328,7 +328,7 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 										})
 								}}
 							>
-								Select Local Folder
+								Choose local folder
 							</Button>
 						</div>
 
@@ -337,32 +337,32 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 							<div className="action-card-header">
 								<div className="action-icon">🌐</div>
 								<div>
-									<h3 className="action-title">Open Remote URL</h3>
-									<span className="action-tagline">Cloud repos & API endpoints</span>
+									<h3 className="action-title">Remote repository</h3>
+									<span className="action-tagline">GitHub repos and server endpoints</span>
 								</div>
 							</div>
-							<p className="action-desc">View and test graphics hosted on a remote URL.</p>
+							<p className="action-desc">Inspect graphics published on remote URLs.</p>
 
 							<div className="supported-urls-box">
-								<div className="supported-title">Supported URL formats:</div>
+								<div className="supported-title">Supported sources</div>
 								<ul className="supported-list">
 									<li>
 										<span className="url-badge github-badge">GitHub</span>
-										<code>github.com/org/repo/tree/branch/...</code>
+										<code>github.com/org/repo/tree/...</code>
 									</li>
 									<li>
-										<span className="url-badge server-badge">OGraf Server API</span>
+										<span className="url-badge server-badge">Server</span>
 										<code>http://host:port/api/ograf/v1</code>
 									</li>
 								</ul>
 							</div>
 
 							<div className="d-flex flex-column gap-2 mt-auto">
-								<Button variant="outline-secondary" className="action-btn" onClick={handleOpenInputModal}>
-									Enter Remote URL…
+								<Button variant="primary" className="action-btn" onClick={handleOpenInputModal}>
+									Open remote URL
 								</Button>
 								<Button variant="secondary" size="sm" className="shortcut-btn" onClick={handleLoadOfficialExamples}>
-									..or try github.com/ebu/ograf/v1/examples
+									Load official EBU examples
 								</Button>
 							</div>
 						</div>
@@ -370,16 +370,16 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 						{/* Card 3: Sample Pack */}
 						<div className="action-card sample-card">
 							<div className="action-card-header">
-								<div className="action-icon">🚀</div>
+								<div className="action-icon">📦</div>
 								<div>
-									<h3 className="action-title">Open Sample Pack</h3>
-									<span className="action-tagline">To get started right away</span>
+									<h3 className="action-title">Sample pack</h3>
+									<span className="action-tagline">Pre-bundled test graphics</span>
 								</div>
 							</div>
-							<p className="action-desc">No OGrafs to test? Try these!</p>
+							<p className="action-desc">Explore sample headline and lower-third graphics without local files.</p>
 
-							<Button variant="success" className="w-100 action-btn mt-auto" onClick={handleLoadSamplePack}>
-								Try Sample Pack
+							<Button variant="primary" className="w-100 action-btn mt-auto" onClick={handleLoadSamplePack}>
+								Load sample pack
 							</Button>
 						</div>
 					</div>
@@ -387,52 +387,41 @@ export function InitialView({ onGraphicsFolder, initialRemoteUrl, initialCustomN
 
 				{/* 4 Feature Showcase Cards */}
 				<section className="dashboard-features-section">
-					<h2 className="section-heading">OGraf DevTool Features</h2>
+					<h2 className="section-heading">Capabilities</h2>
 					<div className="features-grid">
 						<div className="feature-card">
 							<div className="feature-header">
-								<span className="feature-icon">👀</span>
-								<h3 className="feature-title">View and Play OGrafs</h3>
+								<h3 className="feature-title">Real-time and non-realtime playback</h3>
 							</div>
 							<p className="feature-desc">
-								In this tool, you can view and play both <strong>Real-Time</strong> and <strong>Non-Real-Time</strong>{' '}
-								OGraf graphics.
+								Inspect live interactive templates or stepped frame animations in an isolated sandbox.
 							</p>
 						</div>
 
 						<div className="feature-card">
 							<div className="feature-header">
-								<span className="feature-icon">🎬</span>
-								<h3 className="feature-title">Export OGrafs to Video</h3>
+								<h3 className="feature-title">Video and frame export</h3>
 							</div>
 							<p className="feature-desc">
-								Render and export non-realtime OGrafs to video files. Many formats supported including the ones with
-								transparency like <strong>WebM</strong>, <strong>Apple ProRes 4444</strong>,{' '}
-								<strong>QuickTime Animation</strong>, <strong>.mkv VP9</strong> as well as <strong>PNG sequence</strong>
-								.
+								Render broadcast packages to Apple ProRes 4444, WebM, QuickTime Animation, or PNG image sequences.
 							</p>
 						</div>
 
 						<div className="feature-card">
 							<div className="feature-header">
-								<span className="feature-icon">🖼️</span>
-								<h3 className="feature-title">Auto-generate Thumbnails</h3>
+								<h3 className="feature-title">Automated thumbnail generation</h3>
 							</div>
 							<p className="feature-desc">
-								Missing thumbnails for your OGrafs? No worries! This tool can{' '}
-								<strong>update your OGrafs with thumbnails</strong> automatically, right in your local folder on your
-								computer.
+								Batch generate missing WebP thumbnails and write metadata straight to local files.
 							</p>
 						</div>
 
 						<div className="feature-card">
 							<div className="feature-header">
-								<span className="feature-icon">⚡</span>
-								<h3 className="feature-title">Spec Compliance & Validation</h3>
+								<h3 className="feature-title">Specification compliance</h3>
 							</div>
 							<p className="feature-desc">
-								Automated checks against the official OGraf Specification, with helpful guidance to fix various common
-								issues.
+								Lint manifests and asset references against the EBU OGraf schema with inline issue guidance.
 							</p>
 						</div>
 					</div>

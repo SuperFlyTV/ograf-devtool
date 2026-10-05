@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <b>View OGrafs, validate OGrafs, export OGrafs to video files, and more!</b>
+  <b>View, Validate, and Export OGrafs to Video Files!</b>
 </p>
 
 <p align="center">

@@ -1,9 +1,9 @@
 // Modern Light/Dark responsive styling for Initial Dashboard
 
 .initial-dashboard {
-	min-height: 100vh;
+	min-height: 100dvh;
 	width: 100%;
-	background: var(--app-bg-gradient);
+	background-color: var(--app-bg);
 	color: var(--app-text-main);
 	display: flex;
 	flex-direction: column;
@@ -11,9 +11,9 @@
 	transition: background-color 0.2s ease, color 0.2s ease;
 
 	&.dragging {
-		background: radial-gradient(circle at 50% 20%, rgba(56, 189, 248, 0.2) 0%, var(--app-bg) 100%);
-		outline: 3px dashed var(--app-link-color);
-		outline-offset: -12px;
+		background-color: var(--app-card-bg);
+		outline: 2px dashed var(--app-text-muted);
+		outline-offset: -10px;
 	}
 
 	a {
@@ -32,9 +32,8 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 0.85rem 2rem;
+	padding: 0.75rem 2rem;
 	background: var(--app-top-banner-bg);
-	backdrop-filter: blur(12px);
 	border-bottom: 1px solid var(--app-top-banner-border);
 	position: relative;
 	z-index: 1050;
@@ -45,14 +44,14 @@
 		align-items: center;
 		gap: 0.6rem;
 		background: var(--app-surface-subtle);
-		padding: 0.35rem 0.85rem;
-		border-radius: 9999px;
+		padding: 0.3rem 0.75rem;
+		border-radius: 6px;
 		border: 1px solid var(--app-card-border);
 
 		.badge-label {
-			font-size: 0.78rem;
+			font-size: 0.75rem;
 			text-transform: uppercase;
-			letter-spacing: 0.05em;
+			letter-spacing: 0.04em;
 			color: var(--app-text-muted);
 			font-weight: 600;
 		}
@@ -61,12 +60,7 @@
 			display: flex;
 			align-items: center;
 			img {
-				// height: 22px;
-				// height: 32px;
-				height: 62px;
-				margin-top: -20px;
-				margin-bottom: -20px;
-				margin-right: -14px;
+				height: 20px;
 			}
 		}
 	}
@@ -77,7 +71,7 @@
 		gap: 1.25rem;
 
 		.banner-nav-link {
-			font-size: 0.88rem;
+			font-size: 0.84rem;
 			color: var(--app-text-muted);
 			font-weight: 500;
 			&:hover {
@@ -97,7 +91,7 @@
 	flex: 1;
 	display: flex;
 	flex-direction: column;
-	gap: 3.5rem;
+	gap: 3rem;
 }
 
 /* Hero Section */
@@ -112,52 +106,49 @@
 		align-items: center;
 		justify-content: center;
 		gap: 1.25rem;
-		margin-bottom: 1.25rem;
+		margin-bottom: 1rem;
 		flex-wrap: wrap;
 
 		.hero-logo {
-			height: 64px;
-			filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+			height: 56px;
 		}
 
 		.hero-title-group {
 			text-align: left;
 
 			h1 {
-				font-size: 2.6rem;
-				font-weight: 800;
-				letter-spacing: -0.02em;
+				font-size: 2.4rem;
+				font-weight: 700;
+				letter-spacing: -0.03em;
 				margin: 0;
-				background: var(--app-hero-title-gradient);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
+				color: var(--app-text-main);
 			}
 
 			.hero-subtitle {
-				font-size: 1.05rem;
-				color: var(--app-link-color);
-				font-weight: 600;
-				margin: 0;
-				letter-spacing: 0.01em;
+				font-size: 0.95rem;
+				color: var(--app-text-muted);
+				font-weight: 500;
+				margin: 0.2rem 0 0 0;
 			}
 		}
 	}
 
 	.hero-lead {
-		max-width: 760px;
-		font-size: 1.05rem;
+		max-width: 720px;
+		font-size: 0.98rem;
 		line-height: 1.6;
-		color: var(--app-text-muted);
+		color: var(--app-text-secondary);
 		margin: 0.5rem 0 0 0;
 	}
 }
 
 /* Section Headings */
 .section-heading {
-	font-size: 1.35rem;
+	font-size: 1.2rem;
 	font-weight: 700;
+	letter-spacing: -0.01em;
 	color: var(--app-text-main);
-	margin-bottom: 1.25rem;
+	margin-bottom: 1rem;
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
@@ -166,7 +157,7 @@
 		content: '';
 		flex: 1;
 		height: 1px;
-		background: var(--app-divider-gradient);
+		background: var(--app-card-border);
 		margin-left: 0.75rem;
 	}
 }
@@ -175,60 +166,58 @@
 .actions-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-	gap: 1.5rem;
+	gap: 1.25rem;
 }
 
 .action-card {
 	background: var(--app-card-bg);
 	border: 1px solid var(--app-card-border);
-	border-radius: 12px;
-	padding: 1.75rem;
+	border-radius: 8px;
+	padding: 1.5rem;
 	display: flex;
 	flex-direction: column;
-	backdrop-filter: blur(16px);
 	box-shadow: var(--app-card-shadow);
-	transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+	transition: border-color 0.15s ease, background-color 0.15s ease;
 
 	&:hover {
-		transform: translateY(-3px);
 		border-color: var(--app-card-border-hover);
-		box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.25), 0 0 15px rgba(56, 189, 248, 0.15);
 	}
 
 	.action-card-header {
 		display: flex;
 		align-items: center;
-		gap: 0.85rem;
+		gap: 0.75rem;
 		margin-bottom: 0.75rem;
 
 		.action-icon {
-			font-size: 1.75rem;
+			font-size: 1.4rem;
 			background: var(--app-surface-subtle);
-			width: 44px;
-			height: 44px;
+			width: 40px;
+			height: 40px;
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			border-radius: 10px;
+			border-radius: 6px;
 			border: 1px solid var(--app-card-border);
 		}
 
 		.action-title {
-			font-size: 1.2rem;
+			font-size: 1.1rem;
 			font-weight: 700;
 			color: var(--app-text-main);
 			margin: 0;
+			letter-spacing: -0.01em;
 		}
 
 		.action-tagline {
-			font-size: 0.78rem;
+			font-size: 0.75rem;
 			color: var(--app-text-muted);
 			display: block;
 		}
 	}
 
 	.action-desc {
-		font-size: 0.88rem;
+		font-size: 0.85rem;
 		color: var(--app-text-muted);
 		line-height: 1.45;
 		margin-bottom: 1.25rem;
@@ -236,19 +225,43 @@
 
 	.action-btn {
 		font-weight: 600;
-		padding: 0.6rem 1rem;
-		border-radius: 8px;
+		font-size: 0.85rem;
+		padding: 0.55rem 1rem;
+		border-radius: 6px;
+		transition: all 0.15s ease;
+
+		&.btn-primary {
+			background-color: #f4f4f5 !important;
+			border-color: #f4f4f5 !important;
+			color: #121214 !important;
+
+			&:hover:not(:disabled) {
+				background-color: #ffffff !important;
+				border-color: #ffffff !important;
+				color: #000000 !important;
+			}
+		}
+
+		&.btn-secondary,
+		&.btn-outline-secondary {
+			background-color: var(--app-surface-hover) !important;
+			border-color: rgba(255, 255, 255, 0.2) !important;
+			color: var(--app-text-main) !important;
+
+			&:hover:not(:disabled) {
+				background-color: rgba(255, 255, 255, 0.15) !important;
+				border-color: rgba(255, 255, 255, 0.35) !important;
+				color: #ffffff !important;
+			}
+		}
 	}
 
 	&.disabled {
 		opacity: 0.45;
-		filter: grayscale(100%);
 		cursor: not-allowed;
 
 		&:hover {
-			transform: none;
 			border-color: var(--app-card-border);
-			box-shadow: var(--app-card-shadow);
 		}
 
 		.dropzone-box {
@@ -270,17 +283,17 @@
 
 /* Local Folder Dropzone */
 .dropzone-box {
-	border: 2px dashed rgba(56, 189, 248, 0.4);
+	border: 1px dashed var(--app-card-border);
 	background: var(--app-surface-subtle);
-	border-radius: 10px;
+	border-radius: 6px;
 	padding: 1.25rem 0.75rem;
 	text-align: center;
 	margin-bottom: 1rem;
 	cursor: pointer;
-	transition: all 0.2s ease;
+	transition: all 0.15s ease;
 
 	&:hover {
-		border-color: var(--app-link-color);
+		border-color: var(--app-card-border-hover);
 		background: var(--app-surface-hover);
 	}
 
@@ -291,11 +304,11 @@
 		gap: 0.4rem;
 
 		.dropzone-icon {
-			font-size: 1.5rem;
+			font-size: 1.35rem;
 		}
 
 		.dropzone-text {
-			font-size: 0.85rem;
+			font-size: 0.82rem;
 			color: var(--app-text-secondary);
 		}
 	}
@@ -305,17 +318,17 @@
 .supported-urls-box {
 	background: var(--app-surface-subtle);
 	border: 1px solid var(--app-card-border);
-	border-radius: 8px;
-	padding: 0.85rem;
+	border-radius: 6px;
+	padding: 0.75rem;
 	margin-bottom: 1.25rem;
 
 	.supported-title {
-		font-size: 0.75rem;
-		font-weight: 700;
+		font-size: 0.72rem;
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.04em;
 		color: var(--app-text-muted);
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.4rem;
 	}
 
 	.supported-list {
@@ -330,29 +343,19 @@
 			display: flex;
 			align-items: center;
 			gap: 0.5rem;
-			font-size: 0.8rem;
+			font-size: 0.78rem;
 			overflow: hidden;
 
 			.url-badge {
-				font-size: 0.68rem;
-				font-weight: 700;
-				padding: 0.15rem 0.45rem;
+				font-size: 0.65rem;
+				font-weight: 600;
+				padding: 0.12rem 0.4rem;
 				border-radius: 4px;
 				text-transform: uppercase;
 				flex-shrink: 0;
-
-				&.github-badge {
-					background: #334155;
-					color: #f1f5f9;
-				}
-				&.server-badge {
-					background: #0369a1;
-					color: #e0f2fe;
-				}
-				&.manifest-badge {
-					background: #4338ca;
-					color: #e0e7ff;
-				}
+				background: var(--app-surface-hover);
+				border: 1px solid var(--app-card-border);
+				color: var(--app-text-secondary);
 			}
 
 			code {
@@ -368,11 +371,16 @@
 
 .shortcut-btn {
 	font-size: 0.8rem;
-	background: var(--app-btn-secondary-bg);
-	border-color: var(--app-btn-secondary-border);
-	color: var(--app-btn-secondary-color);
+	background: var(--app-surface-subtle);
+	border: 1px solid var(--app-card-border);
+	color: var(--app-text-secondary);
+	padding: 0.35rem 0.65rem;
+	border-radius: 6px;
+	transition: all 0.15s ease;
+
 	&:hover {
 		background: var(--app-surface-hover);
+		border-color: var(--app-card-border-hover);
 		color: var(--app-text-main);
 	}
 }

@@ -9,10 +9,9 @@
 /* Toolbar Card & Controls */
 .list-toolbar-card {
 	background: var(--app-card-bg);
-	backdrop-filter: blur(16px);
 	border: 1px solid var(--app-card-border);
-	border-radius: 12px;
-	padding: 0.9rem 1.25rem;
+	border-radius: 8px;
+	padding: 0.85rem 1.25rem;
 	box-shadow: var(--app-card-shadow);
 	transition: background-color 0.2s ease, border-color 0.2s ease;
 }
@@ -55,7 +54,7 @@
 
 			&:hover:not(:disabled) {
 				background: var(--app-surface-hover);
-				border-color: var(--app-link-color);
+				border-color: var(--app-card-border-hover);
 				color: var(--app-text-main);
 			}
 
@@ -67,14 +66,14 @@
 
 				&:hover:not(:disabled) {
 					background: var(--app-surface-hover);
-					border-color: var(--app-link-color);
+					border-color: var(--app-card-border-hover);
 					color: var(--app-text-main);
 				}
 			}
 
 			&:disabled,
 			&.disabled {
-				opacity: 0.6;
+				opacity: 0.5;
 				color: var(--app-text-muted) !important;
 				background: var(--app-btn-secondary-bg) !important;
 				border-color: var(--app-btn-secondary-border) !important;
@@ -104,7 +103,7 @@
 		width: 100%;
 		background: var(--app-input-bg);
 		border: 1px solid var(--app-input-border);
-		border-radius: 8px;
+		border-radius: 6px;
 		color: var(--app-input-text);
 		font-size: 0.85rem;
 		padding: 0.45rem 2rem 0.45rem 2.25rem;
@@ -116,9 +115,9 @@
 
 		&:focus {
 			outline: none;
-			border-color: var(--app-link-color);
+			border-color: var(--app-text-main);
 			background: var(--app-input-bg);
-			box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+			box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
 		}
 	}
 
@@ -515,16 +514,16 @@
 			gap: 0.75rem;
 
 			.header-icon-wrap {
-				width: 38px;
-				height: 38px;
-				border-radius: 8px;
-				background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.2));
-				border: 1px solid rgba(56, 189, 248, 0.35);
+				width: 36px;
+				height: 36px;
+				border-radius: 6px;
+				background: var(--app-surface-subtle);
+				border: 1px solid var(--app-card-border);
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				color: var(--app-link-color);
-				font-size: 1.1rem;
+				color: var(--app-text-main);
+				font-size: 1rem;
 			}
 
 			.generator-title {
@@ -698,8 +697,8 @@
 					cursor: pointer;
 
 					&:checked {
-						background-color: #0284c7;
-						border-color: #38bdf8;
+						background-color: var(--app-text-main);
+						border-color: var(--app-text-main);
 					}
 				}
 			}
@@ -771,41 +770,49 @@
 			.btn-action-primary {
 				font-size: 0.88rem;
 				font-weight: 600;
-				padding: 0.5rem 1.1rem;
-				border-radius: 8px;
+				padding: 0.45rem 1rem;
+				border-radius: 6px;
 				display: inline-flex;
 				align-items: center;
 				gap: 0.45rem;
-				box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+				background: var(--app-text-main);
+				color: var(--app-bg);
+				border: 1px solid var(--app-text-main);
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+
+				&:hover:not(:disabled) {
+					background: #ffffff;
+					border-color: #ffffff;
+				}
 			}
 
 			.btn-action-secondary {
 				font-size: 0.88rem;
 				font-weight: 600;
-				padding: 0.5rem 1rem;
-				border-radius: 8px;
+				padding: 0.45rem 1rem;
+				border-radius: 6px;
 				display: inline-flex;
 				align-items: center;
 				gap: 0.45rem;
-				background: rgba(56, 189, 248, 0.1);
-				border-color: rgba(56, 189, 248, 0.4);
-				color: var(--app-link-color);
+				background: var(--app-btn-secondary-bg);
+				border: 1px solid var(--app-btn-secondary-border);
+				color: var(--app-btn-secondary-color);
 
 				&:hover:not(:disabled) {
-					background: #0284c7;
-					border-color: #0284c7;
-					color: #ffffff;
+					background: var(--app-surface-hover);
+					border-color: var(--app-card-border-hover);
+					color: var(--app-text-main);
 				}
 
 				&.btn-action-no-thumb {
-					background: rgba(99, 102, 241, 0.18);
-					border-color: rgba(129, 140, 248, 0.5);
-					color: #818cf8;
+					background: var(--app-surface-subtle);
+					border: 1px solid var(--app-card-border);
+					color: var(--app-text-secondary);
 
 					&:hover:not(:disabled) {
-						background: #4f46e5;
-						border-color: #4f46e5;
-						color: #ffffff;
+						background: var(--app-surface-hover);
+						border-color: var(--app-card-border-hover);
+						color: var(--app-text-main);
 					}
 				}
 			}
@@ -813,8 +820,8 @@
 			.btn-action-danger {
 				font-size: 0.85rem;
 				font-weight: 600;
-				padding: 0.5rem 0.9rem;
-				border-radius: 8px;
+				padding: 0.45rem 0.9rem;
+				border-radius: 6px;
 				display: inline-flex;
 				align-items: center;
 				gap: 0.4rem;
@@ -824,7 +831,7 @@
 		.progress-status-container {
 			background: var(--app-surface-subtle);
 			border: 1px solid var(--app-card-border);
-			border-radius: 8px;
+			border-radius: 6px;
 			padding: 0.75rem 1rem;
 
 			.progress-label {
@@ -835,18 +842,18 @@
 
 			.status-summary-badge {
 				font-size: 0.75rem;
-				padding: 0.3rem 0.55rem;
-				border-radius: 6px;
+				padding: 0.25rem 0.5rem;
+				border-radius: 4px;
 			}
 
 			.custom-generator-progressbar {
-				height: 8px;
+				height: 6px;
 				background: var(--app-surface-hover);
-				border-radius: 4px;
+				border-radius: 3px;
 				overflow: hidden;
 
 				.progress-bar {
-					background: linear-gradient(90deg, #38bdf8, #6366f1);
+					background: var(--app-text-main);
 				}
 			}
 		}
