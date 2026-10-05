@@ -6,7 +6,14 @@ import { getDefaultDataFromSchema } from 'ograf-form'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 import { GraphicAction } from './GraphicAction.jsx'
 
-export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manifest, schedule }) {
+export function GraphicControlRealTime({
+	rendererRef,
+	setActionsSchedule,
+	manifest,
+	schedule,
+	externalData,
+	setExternalData,
+}) {
 	const settingsContext = React.useContext(SettingsContext)
 	const settings = settingsContext.settings
 	const onChange = settingsContext.onChange
@@ -15,7 +22,10 @@ export function GraphicControlRealTime({ rendererRef, setActionsSchedule, manife
 		return manifest?.schema ? getDefaultDataFromSchema(manifest.schema) : {}
 	}, [manifest?.schema])
 
-	const [data, setData] = React.useState(initialData)
+	const [internalData, setInternalData] = React.useState(initialData)
+	const data = externalData !== undefined ? externalData : internalData
+	const setData = setExternalData || setInternalData
+
 	const onDataSave = (d) => {
 		setData(JSON.parse(JSON.stringify(d)))
 	}

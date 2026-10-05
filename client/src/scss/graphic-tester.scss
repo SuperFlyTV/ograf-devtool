@@ -882,3 +882,37 @@
 	}
 }
 
+/* Custom Controllers Section */
+.custom-controllers-section {
+	.custom-controller-card {
+		background: var(--app-surface-bg, rgba(255, 255, 255, 0.03));
+		border-color: var(--app-card-border) !important;
+		border-radius: 8px;
+		overflow: hidden;
+		transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+		&:hover {
+			border-color: var(--app-card-border-hover) !important;
+		}
+
+		.card-header {
+			background: var(--app-surface-hover, rgba(255, 255, 255, 0.05));
+			border-bottom: 1px solid var(--app-card-border);
+			transition: background-color 0.15s ease;
+
+			&:hover {
+				background: var(--app-surface-active, rgba(255, 255, 255, 0.08));
+			}
+		}
+
+		.card-body {
+			background: transparent;
+		}
+
+		.custom-controller-dom-container {
+			min-height: 40px;
+			width: 100%;
+		}
+	}
+}
+

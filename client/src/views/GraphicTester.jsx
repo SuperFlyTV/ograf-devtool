@@ -14,6 +14,7 @@ import { GraphicModeSelector } from '../components/GraphicModeSelector.jsx'
 import { GraphicCapabilities } from '../components/GraphicCapabilities.jsx'
 import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
 import { VideoExportModal } from '../components/VideoExportModal.jsx'
+import { CustomControllersPanel } from '../components/CustomControllersPanel.jsx'
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
 import { getDefaultDataFromSchema } from 'ograf-form'
 
@@ -347,6 +348,10 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 	const settingsRef = React.useRef(settings)
 	settingsRef.current = settings
 
+	const [customControllers, setCustomControllers] = React.useState([])
+	const [graphicReloadKey, setGraphicReloadKey] = React.useState(0)
+	const [realtimeData, setRealtimeData] = React.useState({})
+
 	const [isReloading, setIsReloading] = React.useState(false)
 	React.useEffect(() => {
 		if (isReloading) {
@@ -369,6 +374,7 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 
 	const reloadGraphic = React.useCallback(async () => {
 		await rendererRef.current.clearGraphic()
+		setCustomControllers([])
 		issueTracker.clear()
 		const manifest = await reloadGraphicManifest()
 
@@ -387,7 +393,10 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 		if (!initialData) initialData = {}
 
 		rendererRef.current.setData(initialData)
-		await rendererRef.current.loadGraphic(settingsRef.current, initialData).catch(issueTracker.addError)
+		setRealtimeData(initialData)
+		const controllers = await rendererRef.current.loadGraphic(settingsRef.current, initialData).catch(issueTracker.addError)
+		setCustomControllers(controllers || rendererRef.current.getCustomControllers())
+		setGraphicReloadKey((k) => k + 1)
 
 		setIsReloading(true)
 	}, [graphic, reloadGraphicManifest])
@@ -592,6 +601,54 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 		}
 	}, [])
 
+	const onUpdateGraphicData = React.useCallback(
+		(newData) => {
+			if (settingsRef.current.realtime) {
+				setRealtimeData(newData)
+				if (rendererRef.current) {
+					rendererRef.current.setData(newData)
+				}
+			} else {
+				const scheduleCopy = [...scheduleRef.current]
+				const initialIndex = scheduleCopy.findIndex(
+					(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
+				)
+				if (initialIndex >= 0) {
+					scheduleCopy[initialIndex] = {
+						...scheduleCopy[initialIndex],
+						action: {
+							...scheduleCopy[initialIndex].action,
+							params: {
+								...scheduleCopy[initialIndex].action?.params,
+								data: JSON.parse(JSON.stringify(newData)),
+							},
+						},
+					}
+				} else {
+					scheduleCopy.unshift({
+						timestamp: 0,
+						action: { type: 'initialData', params: { data: JSON.parse(JSON.stringify(newData)) } },
+					})
+				}
+				setActionsSchedule(scheduleCopy)
+				if (rendererRef.current) {
+					rendererRef.current.setData(newData)
+				}
+			}
+		},
+		[setActionsSchedule]
+	)
+
+	const currentNonRealtimeData = React.useMemo(() => {
+		const initialEv = schedule.find(
+			(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
+		)
+		return (
+			initialEv?.action?.params?.data ||
+			(graphicManifest?.schema ? getDefaultDataFromSchema(graphicManifest.schema) : {})
+		)
+	}, [schedule, graphicManifest?.schema])
+
 	// Load the graphic manifest:
 	React.useEffect(() => {
 		if (!graphicManifest) reloadGraphicManifest().catch(onError)
@@ -692,6 +749,8 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 												schedule={schedule}
 												setActionsSchedule={setActionsSchedule}
 												manifest={graphicManifest}
+												externalData={realtimeData}
+												setExternalData={setRealtimeData}
 											/>
 										) : (
 											<GraphicControlNonRealTime
@@ -706,6 +765,20 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 												playTime={playTime}
 											/>
 										)}
+
+										<CustomControllersPanel
+											controllers={customControllers}
+											renderType={settings.realtime ? 'realtime' : 'non-realtime'}
+											rendererRef={rendererRef}
+											data={settings.realtime ? realtimeData : currentNonRealtimeData}
+											onDataChange={onUpdateGraphicData}
+											playTime={playTime}
+											setPlayTime={setPlayTime}
+											schedule={schedule}
+											setActionsSchedule={setActionsSchedule}
+											graphicId={graphic?.path || graphic?.id}
+											reloadKey={graphicReloadKey}
+										/>
 
 										{!settings.realtime && schedule.length ? (
 											<div>

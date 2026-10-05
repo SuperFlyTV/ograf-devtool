@@ -1,5 +1,4 @@
 import { pathJoin, graphicResourcePath } from '../lib/lib.js'
-import {} from '../lib/lib'
 
 export class ResourceProvider {
 	static graphicPath(basePath, graphicPath) {
@@ -7,13 +6,23 @@ export class ResourceProvider {
 	}
 
 	static async loadGraphic(graphicPath) {
+		const result = await this.loadGraphicModule(graphicPath)
+		return result.elementName
+	}
+
+	static async loadGraphicModule(graphicPath) {
 		const componentId = 'graphic-component' + staticComponentId++
 
-		const webComponent = await this.fetchModule(graphicPath, componentId)
-		customElements.define(componentId, webComponent)
+		const { defaultExport, customControllers } = await this.fetchModule(graphicPath, componentId)
+		customElements.define(componentId, defaultExport)
 
-		return componentId
+		return {
+			elementName: componentId,
+			defaultExport,
+			customControllers,
+		}
 	}
+
 	static async fetchModule(graphicPath, componentId) {
 		// Add a querystring, just to disable caching:
 		const modulePath = graphicResourcePath(graphicPath) + `?componentId=${componentId}` // `${this.serverApiUrl}/serverApi/v1/graphics/graphic/${id}/${version}/graphic`
@@ -43,7 +52,40 @@ export class ResourceProvider {
 			throw new Error('The Graphic is expected to default export a class')
 		}
 
-		return module.default
+		const customControllers = this.extractCustomControllers(module)
+
+		return {
+			defaultExport: module.default,
+			customControllers,
+		}
+	}
+
+	static extractCustomControllers(module) {
+		const controllers = []
+		for (const [exportKey, exp] of Object.entries(module)) {
+			if (!exp || exportKey === 'default') continue
+			if (exp.type === 'user-interface') {
+				const rawTypes = exp.supportedRenderType !== undefined ? exp.supportedRenderType : exp.supportedRenterType
+				let supportedRenderTypes = []
+				if (Array.isArray(rawTypes)) {
+					supportedRenderTypes = rawTypes
+				} else if (typeof rawTypes === 'string') {
+					supportedRenderTypes = [rawTypes]
+				} else {
+					supportedRenderTypes = []
+				}
+
+				controllers.push({
+					id: exportKey,
+					exportName: exportKey,
+					componentClass: exp,
+					name: typeof exp.name === 'string' && exp.name !== exportKey ? exp.name : (exp.name || exportKey),
+					description: typeof exp.description === 'string' ? exp.description : '',
+					supportedRenderTypes,
+				})
+			}
+		}
+		return controllers
 	}
 }
 let staticComponentId = 0

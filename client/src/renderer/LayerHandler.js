@@ -42,7 +42,7 @@ export class LayerHandler {
 
 		this.lastGoToTime = undefined
 
-		const elementName = await ResourceProvider.loadGraphic(graphicPath)
+		const { elementName, customControllers } = await ResourceProvider.loadGraphicModule(graphicPath)
 
 		// Add element to DOM:
 		const element = document.createElement(elementName)
@@ -57,6 +57,7 @@ export class LayerHandler {
 			elementName,
 			graphicPath,
 		}
+		this.customControllers = customControllers || []
 
 		// const baseUrl = graphicResourcePath(graphicPath)
 		// 	// Remove last "/":
@@ -95,6 +96,7 @@ export class LayerHandler {
 		} finally {
 			this.shadowRoot.innerHTML = ''
 			this.currentGraphic = null
+			this.customControllers = []
 		}
 	}
 

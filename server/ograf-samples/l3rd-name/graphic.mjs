@@ -437,4 +437,147 @@ class MyGraphic extends HTMLElement {
 
 export default MyGraphic;
 
-// Note: The renderer will render the component
+/**
+ * Custom controller for the Lower Third graphic.
+ * Demonstrates observedAttributes ['value'], emitting 'change' events,
+ * calling ograf actions, and listening to action lifecycle events.
+ */
+export class UserInterface extends HTMLElement {
+  static type = "user-interface";
+  static name = "Lower Third Quick Controls";
+  static description = "Quick buttons and presets for the Lower Third graphic";
+  static supportedRenderType = ["realtime", "non-realtime"];
+
+  static get observedAttributes() {
+    return ["value"];
+  }
+
+  constructor() {
+    super();
+    this.value = {};
+  }
+
+  get value() {
+    const val = this.getAttribute("value");
+    if (!val) return {};
+    if (typeof val === "string") {
+      try {
+        return JSON.parse(val);
+      } catch (_) {
+        return {};
+      }
+    }
+    return val;
+  }
+
+  set value(val) {
+    this.setAttribute(
+      "value",
+      typeof val === "string" ? val : JSON.stringify(val || {})
+    );
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (name === "value" && oldValue !== newValue) {
+      this._updateUIFromValue();
+    }
+  }
+
+  _updateUIFromValue() {
+    const val = this.value;
+    const titleEl = this.querySelector(".data-display");
+    if (titleEl) {
+      titleEl.textContent = `Name: "${val.name || ''}" | Title: "${val.title || ''}"`;
+    }
+  }
+
+  connectedCallback() {
+    //
+  }
+
+  async load({ ograf, renderType = "realtime" } = {}) {
+    this.ograf = ograf;
+    this.renderType = renderType;
+
+    this.innerHTML = `
+      <div style="font-family: inherit; font-size: 0.85rem; display: flex; flex-direction: column; gap: 8px;">
+        <div class="data-display text-muted small fw-semibold" style="padding: 2px 0;"></div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-sm btn-outline-primary preset-breaking">Set Breaking News</button>
+          <button type="button" class="btn btn-sm btn-outline-info preset-guest">Set Jane Smith</button>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-sm btn-success action-play">Play</button>
+          <button type="button" class="btn btn-sm btn-danger action-stop">Stop</button>
+          <button type="button" class="btn btn-sm btn-warning action-highlight">Highlight</button>
+        </div>
+        <div class="status-msg text-muted small" style="margin-top: 4px;">Ready</div>
+      </div>
+    `;
+
+    this._updateUIFromValue();
+
+    const setStatus = (msg) => {
+      const el = this.querySelector(".status-msg");
+      if (el) el.textContent = msg;
+    };
+
+    // Listen to lifecycle events on ograf
+    this.ograf.on("playActionStart", (e) => setStatus(`[Event] playActionStart (cmd: ${e.detail?.commandId})`));
+    this.ograf.on("playActionEnd", (e) => setStatus(`[Event] playActionEnd (cmd: ${e.detail?.commandId})`));
+    this.ograf.on("stopActionStart", (e) => setStatus(`[Event] stopActionStart (cmd: ${e.detail?.commandId})`));
+    this.ograf.on("stopActionEnd", (e) => setStatus(`[Event] stopActionEnd (cmd: ${e.detail?.commandId})`));
+    this.ograf.on("updateActionStart", (e) => setStatus(`[Event] updateActionStart (cmd: ${e.detail?.commandId})`));
+    this.ograf.on("updateActionEnd", (e) => setStatus(`[Event] updateActionEnd (cmd: ${e.detail?.commandId})`));
+    this.ograf.on("customActionStart", (e) => setStatus(`[Event] customActionStart: ${e.detail?.arg?.id || ''}`));
+    this.ograf.on("customActionEnd", (e) => setStatus(`[Event] customActionEnd: ${e.detail?.arg?.id || ''}`));
+    this.ograf.on("goToTimeStart", (e) => setStatus(`[Event] goToTimeStart: ${e.detail?.arg?.timestamp ?? ''}`));
+    this.ograf.on("goToTimeEnd", (e) => setStatus(`[Event] goToTimeEnd: ${e.detail?.arg?.timestamp ?? ''}`));
+
+    const emitChange = (newData) => {
+      this.value = newData;
+      this.dispatchEvent(
+        new CustomEvent("change", {
+          bubbles: true,
+          cancelable: false,
+          detail: { value: newData },
+        })
+      );
+    };
+
+    this.querySelector(".preset-breaking")?.addEventListener("click", async () => {
+      const newData = { name: "BREAKING NEWS", title: "Live Report from the Field" };
+      emitChange(newData);
+      await this.ograf.updateAction({ data: newData });
+    });
+
+    this.querySelector(".preset-guest")?.addEventListener("click", async () => {
+      const newData = { name: "Jane Smith", title: "Special Correspondent" };
+      emitChange(newData);
+      await this.ograf.updateAction({ data: newData });
+    });
+
+    this.querySelector(".action-play")?.addEventListener("click", async () => {
+      await this.ograf.playAction();
+    });
+
+    this.querySelector(".action-stop")?.addEventListener("click", async () => {
+      await this.ograf.stopAction();
+    });
+
+    this.querySelector(".action-highlight")?.addEventListener("click", async () => {
+      await this.ograf.customAction("highlight", {});
+    });
+  }
+
+  async onUpdatedData({ data = {} } = {}) {
+    this.value = data;
+    this._updateUIFromValue();
+  }
+
+  async dispose() {
+    this.innerHTML = "";
+    this.ograf = null;
+  }
+}
+
