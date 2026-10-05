@@ -499,7 +499,7 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 	}, [settings.autoReloadEnable, settings.duration, triggerReloadGraphic])
 
 	const playTimeRef = React.useRef(0)
-	const [, setPlayTimeState] = React.useState(0)
+	const [playTime, setPlayTimeState] = React.useState(0)
 	const setPlayTime = React.useCallback(async (time) => {
 		if (playTimeRef.current === time) return
 		playTimeRef.current = time
@@ -703,6 +703,7 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 												manifest={graphicManifest}
 												setPlayTime={setPlayTime}
 												playTimeRef={playTimeRef}
+												playTime={playTime}
 											/>
 										)}
 

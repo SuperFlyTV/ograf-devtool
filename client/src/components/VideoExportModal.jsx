@@ -15,6 +15,7 @@ import JSZip from 'jszip'
 import { isHtmlInCanvasSupported } from '../lib/frameCapture.js'
 import { renderVideoFrames } from '../lib/VideoRenderer.js'
 import { SettingsContext } from '../contexts/SettingsContext.js'
+import { createGifWriter } from '../lib/encoders/gifEncoder.js'
 
 // Register ProRes decoder extension for Mediabunny
 try {
@@ -47,6 +48,12 @@ const CONTAINER_DEFINITIONS = [
 		createFormat: (opts) => new MkvOutputFormat(opts),
 	},
 	{
+		key: 'gif',
+		label: 'Animated GIF (.gif)',
+		ext: 'gif',
+		createFormat: () => null,
+	},
+	{
 		key: 'png-sequence',
 		label: 'PNG Sequence (.zip)',
 		ext: 'zip',
@@ -67,6 +74,7 @@ const CODEC_METADATA = {
 	av1: { label: 'AV1' },
 	prores: { label: 'Apple ProRes (in browser)' },
 	png: { label: 'PNG' },
+	gif: { label: 'GIF' },
 }
 
 const VIDEO_EXPORT_STORAGE_KEY = 'videoExportSettings'
@@ -270,6 +278,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 	const [bgColor, setBgColor] = React.useState(() => savedSettings.bgColor || '#000000')
 
 	const isPngSequence = selectedContainerKey === 'png-sequence'
+	const isGif = selectedContainerKey === 'gif'
 	const isServerProres = selectedContainerKey === 'mov' && selectedCodec === 'prores-server'
 	const isServerQtrle = selectedContainerKey === 'mov' && selectedCodec === 'qtrle-server'
 	const isServerConvert = isServerProres || isServerQtrle
@@ -287,21 +296,22 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 
 	const supportedCodecsForContainer = React.useMemo(() => {
 		if (isPngSequence) return ['png']
+		if (isGif) return ['gif']
 		if (!currentFormat) return []
 		const codecs = currentFormat.getSupportedVideoCodecs()
 		if (selectedContainerKey === 'mov') {
 			return ['prores-server', 'qtrle-server', ...codecs]
 		}
 		return codecs
-	}, [isPngSequence, currentFormat, selectedContainerKey])
+	}, [isPngSequence, isGif, currentFormat, selectedContainerKey])
 
-	const currentExt = isPngSequence ? 'zip' : currentFormat ? currentFormat.fileExtension.replace(/^\./, '') : 'webm'
+	const currentExt = currentContainerDef.ext || (currentFormat ? currentFormat.fileExtension.replace(/^\./, '') : 'webm')
 
 	// Check which codecs are supported by the browser's WebCodecs encoder
 	React.useEffect(() => {
 		let isMounted = true
 		const checkCodecs = async () => {
-			const results = { png: true, 'prores-server': true, 'qtrle-server': true }
+			const results = { png: true, gif: true, 'prores-server': true, 'qtrle-server': true }
 			const allCodecs = ['vp9', 'vp8', 'avc', 'hevc', 'av1', 'prores']
 			for (const codec of allCodecs) {
 				try {
@@ -328,6 +338,8 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 	React.useEffect(() => {
 		if (isPngSequence) {
 			setSelectedCodec('png')
+		} else if (isGif) {
+			setSelectedCodec('gif')
 		} else if (!supportedCodecsForContainer.includes(selectedCodec)) {
 			const preferred =
 				supportedCodecsForContainer.find((c) => codecSupport[c] !== false) || supportedCodecsForContainer[0]
@@ -336,11 +348,12 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 				saveExportSettings({ selectedCodec: preferred })
 			}
 		}
-	}, [isPngSequence, supportedCodecsForContainer, selectedCodec, codecSupport])
+	}, [isPngSequence, isGif, supportedCodecsForContainer, selectedCodec, codecSupport])
 
-	// Alpha transparency is supported for PNG sequence, server ProRes/QTRLE, and VP9 in WebM / Matroska
+	// Alpha transparency is supported for PNG sequence, Animated GIF, server ProRes/QTRLE, and VP9 in WebM / Matroska
 	const formatHasAlpha =
 		isPngSequence ||
+		isGif ||
 		isServerConvert ||
 		Boolean((selectedContainerKey === 'webm' || selectedContainerKey === 'mkv') && selectedCodec === 'vp9')
 
@@ -426,6 +439,8 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 		setStatusText(
 			isPngSequence
 				? 'Initializing PNG sequence renderer...'
+				: isGif
+				? 'Initializing GIF encoder...'
 				: isServerProres
 				? 'Initializing WebM encoder for server ProRes conversion...'
 				: isServerQtrle
@@ -451,7 +466,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 		let matteWriter = null
 
 		try {
-			const isDualExport = !isPngSequence && !isServerConvert && !formatHasAlpha && bgMode === 'color-and-alpha-matte'
+			const isDualExport = !isPngSequence && !isGif && !isServerConvert && !formatHasAlpha && bgMode === 'color-and-alpha-matte'
 			const isTransparent = formatHasAlpha && bgMode === 'transparent'
 
 			// ── Setup Non-Realtime Video / Frame Writers ─────────────────────────
@@ -460,6 +475,14 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					width,
 					height,
 					baseName: currentBaseName,
+				})
+			} else if (isGif) {
+				mainWriter = await createGifWriter({
+					width,
+					height,
+					fps: validFps,
+					transparent: isTransparent,
+					loopCount: 0,
 				})
 			} else if (isServerConvert) {
 				// Render locally to WebM VP9 (with alpha transparency), then convert to ProRes/QTRLE via server FFmpeg
@@ -565,6 +588,8 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 			setStatusText(
 				isPngSequence
 					? 'Packaging ZIP archive...'
+					: isGif
+					? 'Encoding and finalizing GIF...'
 					: isServerConvert
 					? 'Finalizing WebM render for server conversion...'
 					: 'Finalizing video file(s)...'
@@ -642,6 +667,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					matteUrl,
 					matteExt: ext,
 					isZip: false,
+					isGif: false,
 				})
 			} else {
 				triggerDownload(mainUrl, mainDownloadName)
@@ -649,6 +675,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					mainUrl,
 					mainExt: ext,
 					isZip: isPngSequence,
+					isGif,
 					previewUrl: firstFramePreviewUrl,
 				})
 			}
@@ -656,6 +683,8 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 			setStatusText(
 				isPngSequence
 					? 'Export complete! ZIP archive downloaded.'
+					: isGif
+					? 'Export complete! Animated GIF downloaded.'
 					: isServerProres
 					? 'Export complete! ProRes MOV downloaded.'
 					: 'Export complete! Video downloaded.'
@@ -727,11 +756,15 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 					</Alert>
 				)}
 
-				{/* ── Video Player / ZIP Preview after render ── */}
+				{/* ── Video Player / ZIP / GIF Preview after render ── */}
 				{renderedVideos && !isExporting && (
 					<div className="mb-4 border border-secondary-subtle rounded p-3 bg-body-tertiary">
 						<h6 className="fw-bold mb-3">
-							{renderedVideos.isZip ? '📦 Exported ZIP Preview' : '🎬 Exported Video Preview'}
+							{renderedVideos.isZip
+								? '📦 Exported ZIP Preview'
+								: renderedVideos.isGif
+								? '🖼️ Exported GIF Preview'
+								: '🎬 Exported Video Preview'}
 						</h6>
 
 						{renderedVideos.isZip ? (
@@ -763,6 +796,33 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 										onClick={() => triggerDownload(renderedVideos.mainUrl, `${effectiveBaseName}.zip`)}
 									>
 										⬇️ Download {effectiveBaseName}.zip
+									</Button>
+								</div>
+							</div>
+						) : renderedVideos.isGif ? (
+							<div>
+								<div className="fw-semibold small mb-1">Animated GIF Preview:</div>
+								<div className="d-flex justify-content-center align-items-center p-2 border border-secondary-subtle rounded bg-dark bg-opacity-75">
+									<div
+										className="checkered-bg border border-secondary-subtle rounded overflow-hidden shadow-sm"
+										style={{ display: 'inline-flex', maxWidth: '100%', lineHeight: 0 }}
+									>
+										<img
+											src={renderedVideos.mainUrl}
+											alt="Exported GIF preview"
+											style={{ maxWidth: '100%', maxHeight: '300px', display: 'block' }}
+										/>
+									</div>
+								</div>
+								<div className="d-flex gap-2 mt-2">
+									<Button
+										variant="primary"
+										size="sm"
+										onClick={() =>
+											triggerDownload(renderedVideos.mainUrl, `${effectiveBaseName}.${renderedVideos.mainExt}`)
+										}
+									>
+										⬇️ Download {effectiveBaseName}.${renderedVideos.mainExt}
 									</Button>
 								</div>
 							</div>
@@ -994,7 +1054,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 									setSelectedCodec(newCodec)
 									saveExportSettings({ selectedCodec: newCodec })
 								}}
-								disabled={isExporting || isPngSequence}
+								disabled={isExporting || isPngSequence || isGif}
 							>
 								{supportedCodecsForContainer.map((codec) => {
 									const info = CODEC_METADATA[codec] || { label: codec.toUpperCase() }
@@ -1004,6 +1064,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 									else if (selectedContainerKey === 'mkv' && codec === 'vp9') supportsAlpha = true
 									else if (selectedContainerKey === 'mov' && codec === 'prores-server') supportsAlpha = true
 									else if (selectedContainerKey === 'mov' && codec === 'qtrle-server') supportsAlpha = true
+									else if (selectedContainerKey === 'gif' && codec === 'gif') supportsAlpha = true
 									else if (selectedContainerKey === 'png-sequence' && codec === 'png') supportsAlpha = true
 
 									const isSupportedByBrowser = codecSupport[codec] !== false
@@ -1029,7 +1090,7 @@ export function VideoExportModal({ show, onHide, graphic, schedule = [] }) {
 						</Alert>
 					)}
 
-					{!isPngSequence && !isServerConvert && codecSupport[selectedCodec] === false && (
+					{!isPngSequence && !isGif && !isServerConvert && codecSupport[selectedCodec] === false && (
 						<Alert variant="warning" className="py-2 small">
 							⚠️ Your browser / GPU reported that it may not support encoding with{' '}
 							<strong>{CODEC_METADATA[selectedCodec]?.label || selectedCodec.toUpperCase()}</strong>. If the export

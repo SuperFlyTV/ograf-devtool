@@ -22,11 +22,26 @@ export const OGrafForm = (props) => {
 		props.data ? props.data : schema ? getDefaultDataFromSchema(schema) : {}
 	)
 
+	const prevPropsDataJsonRef = React.useRef(JSON.stringify(props.data))
+
+	// Sync internal data state if props.data changes externally
+	React.useEffect(() => {
+		const json = JSON.stringify(props.data)
+		if (prevPropsDataJsonRef.current !== json) {
+			prevPropsDataJsonRef.current = json
+			setData(props.data ? props.data : schema ? getDefaultDataFromSchema(schema) : {})
+		}
+	}, [props.data, schema])
+
 	/** Callback when the data changes */
-	const onDataChange = React.useCallback((newData) => {
-		setData(newData)
-		props.setData(newData)
-	})
+	const onDataChange = React.useCallback(
+		(newData) => {
+			prevPropsDataJsonRef.current = JSON.stringify(newData)
+			setData(newData)
+			props.setData(newData)
+		},
+		[props]
+	)
 
 	// Set up listener for when the data has changed in the form:
 	React.useLayoutEffect(() => {

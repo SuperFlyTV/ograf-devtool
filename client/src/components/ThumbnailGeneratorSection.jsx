@@ -606,7 +606,7 @@ export function ThumbnailGeneratorSection({
 					</div>
 
 					{/* Right Column: Actions, Status & Log */}
-					<div className="col-12 col-lg-7 col-xl-8">
+					<div className="col-12 col-lg-7 col-xl-8 generator-actions-col">
 						<div className="generator-actions-panel">
 							{/* Action Buttons Bar */}
 							<div className="action-buttons-bar">

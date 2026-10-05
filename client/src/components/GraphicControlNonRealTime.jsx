@@ -11,6 +11,7 @@ export function GraphicControlNonRealTime({
 	manifest,
 	setPlayTime,
 	playTimeRef,
+	playTime,
 	schedule = [],
 	setActionsSchedule,
 	sendSetActionsSchedule,
@@ -22,6 +23,8 @@ export function GraphicControlNonRealTime({
 	const settingsRef = React.useRef(settings)
 	settingsRef.current = settings
 
+	const currentPlayTime = playTime !== undefined ? playTime : (playTimeRef?.current || 0)
+
 	const initialDataFromSchema = React.useMemo(() => {
 		return manifest?.schema ? getDefaultDataFromSchema(manifest.schema) : {}
 	}, [manifest?.schema])
@@ -29,7 +32,42 @@ export function GraphicControlNonRealTime({
 	const initialEvent = schedule.find(
 		(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
 	)
-	const [data, setData] = React.useState(initialEvent?.action?.params?.data ?? initialDataFromSchema)
+
+	// Find the update-data-action that is before (or at) the playhead
+	const activeUpdateAction = React.useMemo(() => {
+		const updateActions = []
+		schedule.forEach((item, index) => {
+			if (item.action?.type === 'updateAction' && item.timestamp <= currentPlayTime) {
+				const isLegacyInitial =
+					item.timestamp === 0 &&
+					!schedule.some((it) => it.action?.type === 'initialData') &&
+					index === schedule.findIndex((it) => it.action?.type === 'updateAction')
+				if (!isLegacyInitial) {
+					updateActions.push({ item, index })
+				}
+			}
+		})
+		if (updateActions.length === 0) return null
+		// Sort by timestamp ascending; for ties, preserve order by index
+		updateActions.sort((a, b) => {
+			if (a.item.timestamp !== b.item.timestamp) {
+				return a.item.timestamp - b.item.timestamp
+			}
+			return a.index - b.index
+		})
+		return updateActions[updateActions.length - 1]
+	}, [schedule, currentPlayTime])
+
+	const currentFormData = React.useMemo(() => {
+		if (activeUpdateAction) {
+			return activeUpdateAction.item.action?.params?.data || {}
+		}
+		return initialEvent?.action?.params?.data ?? initialDataFromSchema
+	}, [activeUpdateAction, initialEvent, initialDataFromSchema])
+
+	const formKey = activeUpdateAction
+		? `update-${activeUpdateAction.index}-${activeUpdateAction.item.timestamp}`
+		: 'initialData'
 
 	const prevInitialDataRef = React.useRef(null)
 
@@ -50,7 +88,7 @@ export function GraphicControlNonRealTime({
 		[rendererRef, sendSetActionsSchedule, sentSetPlayTime]
 	)
 
-	// Sync local data state and reload graphic when the initialData in schedule changes
+	// Sync local initial data and reload graphic when the initialData in schedule changes externally
 	React.useEffect(() => {
 		const ev = schedule.find(
 			(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
@@ -59,7 +97,6 @@ export function GraphicControlNonRealTime({
 			const newData = ev.action.params.data
 			const jsonString = JSON.stringify(newData)
 			if (prevInitialDataRef.current !== jsonString) {
-				setData(JSON.parse(jsonString))
 				const shouldReload = prevInitialDataRef.current !== null
 				prevInitialDataRef.current = jsonString
 				if (shouldReload) {
@@ -76,73 +113,117 @@ export function GraphicControlNonRealTime({
 			(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
 		)
 		if (!hasInitialEvent) {
-			const initialDataToUse = data && Object.keys(data).length > 0 ? data : initialDataFromSchema
 			const updateEvent = {
 				timestamp: 0,
 				action: {
 					type: 'initialData',
-					params: { data: JSON.parse(JSON.stringify(initialDataToUse)) },
+					params: { data: JSON.parse(JSON.stringify(initialDataFromSchema)) },
 				},
 			}
 			const newSchedule = [updateEvent, ...schedule].sort((a, b) => a.timestamp - b.timestamp)
 			setActionsSchedule(newSchedule)
 		}
-	}, [manifest, schedule, setActionsSchedule, data, initialDataFromSchema])
+	}, [manifest, schedule, setActionsSchedule, initialDataFromSchema])
 
-	const onDataSave = (d) => {
-		const cloned = JSON.parse(JSON.stringify(d))
-		setData(cloned)
-		prevInitialDataRef.current = JSON.stringify(cloned)
-		if (rendererRef.current) {
-			rendererRef.current.setData(cloned)
-		}
+	const onDataSave = React.useCallback(
+		(d) => {
+			const cloned = JSON.parse(JSON.stringify(d))
+			const scheduleCopy = [...schedule]
 
-		// Update or insert the initialData event at timestamp 0 in the timeline schedule
-		const scheduleCopy = [...schedule]
-		const existingIndex = scheduleCopy.findIndex(
-			(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
-		)
-		if (existingIndex >= 0) {
-			scheduleCopy[existingIndex] = {
-				timestamp: 0,
-				action: {
-					type: 'initialData',
-					params: {
-						...scheduleCopy[existingIndex].action?.params,
-						data: cloned,
-					},
-				},
+			if (activeUpdateAction) {
+				// We are editing the update-data-action before the playhead
+				let targetIndex = activeUpdateAction.index
+				if (
+					targetIndex < 0 ||
+					targetIndex >= scheduleCopy.length ||
+					scheduleCopy[targetIndex] !== activeUpdateAction.item
+				) {
+					targetIndex = scheduleCopy.findIndex((item) => item === activeUpdateAction.item)
+				}
+				if (targetIndex < 0) {
+					targetIndex = scheduleCopy.findIndex(
+						(item) => item.timestamp === activeUpdateAction.item.timestamp && item.action?.type === 'updateAction'
+					)
+				}
+
+				if (targetIndex >= 0) {
+					scheduleCopy[targetIndex] = {
+						...scheduleCopy[targetIndex],
+						action: {
+							...scheduleCopy[targetIndex].action,
+							type: 'updateAction',
+							params: {
+								...scheduleCopy[targetIndex].action?.params,
+								data: cloned,
+							},
+						},
+					}
+					setActionsSchedule(scheduleCopy)
+					if (sentSetPlayTime) {
+						sentSetPlayTime()
+					}
+				}
+			} else {
+				// We are editing the initial data
+				prevInitialDataRef.current = JSON.stringify(cloned)
+				if (rendererRef.current) {
+					rendererRef.current.setData(cloned)
+				}
+
+				// Update or insert the initialData event at timestamp 0 in the timeline schedule
+				const existingIndex = scheduleCopy.findIndex(
+					(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
+				)
+				if (existingIndex >= 0) {
+					scheduleCopy[existingIndex] = {
+						timestamp: 0,
+						action: {
+							type: 'initialData',
+							params: {
+								...scheduleCopy[existingIndex].action?.params,
+								data: cloned,
+							},
+						},
+					}
+				} else {
+					scheduleCopy.push({
+						timestamp: 0,
+						action: {
+							type: 'initialData',
+							params: { data: cloned },
+						},
+					})
+					scheduleCopy.sort((a, b) => a.timestamp - b.timestamp)
+				}
+				setActionsSchedule(scheduleCopy)
+				reloadGraphicWithInitialData(cloned)
 			}
-		} else {
-			scheduleCopy.push({
-				timestamp: 0,
-				action: {
-					type: 'initialData',
-					params: { data: cloned },
-				},
-			})
-			scheduleCopy.sort((a, b) => a.timestamp - b.timestamp)
-		}
-		setActionsSchedule(scheduleCopy)
-		reloadGraphicWithInitialData(cloned)
-	}
+		},
+		[
+			activeUpdateAction,
+			schedule,
+			setActionsSchedule,
+			sentSetPlayTime,
+			rendererRef,
+			reloadGraphicWithInitialData,
+		]
+	)
 
 	const [skipAnimation, setSkipAnimation] = React.useState(false)
 	const [gotoStep, setGotoStep] = React.useState(1)
 	const [deltaStep, setDeltaStep] = React.useState(1)
 
 	const supportsNonRealTime = manifest?.supportsNonRealTime
-	const currentPlayTime = playTimeRef?.current || 0
 
 	React.useEffect(() => {
 		if (rendererRef.current) {
 			const initialEv = schedule.find(
 				(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
 			)
-			const dataToSet = initialEv?.action?.params?.data ?? data
+			const dataToSet = initialEv?.action?.params?.data ?? initialDataFromSchema
 			rendererRef.current.setData(dataToSet)
 		}
-	}, [data, schedule, rendererRef])
+	}, [schedule, rendererRef, initialDataFromSchema])
 
 	const addToSchedule = React.useCallback(
 		(timestamp, type, params) => {
@@ -174,8 +255,11 @@ export function GraphicControlNonRealTime({
 
 			newSchedule.sort((a, b) => a.timestamp - b.timestamp)
 			setActionsSchedule(newSchedule)
+			if (sentSetPlayTime) {
+				sentSetPlayTime()
+			}
 		},
-		[schedule, setActionsSchedule]
+		[schedule, setActionsSchedule, sentSetPlayTime]
 	)
 
 	return (
@@ -204,7 +288,7 @@ export function GraphicControlNonRealTime({
 														item.action?.type === 'initialData' ||
 														(item.timestamp === 0 && item.action?.type === 'updateAction')
 												)
-												const dataToLoad = initialEv?.action?.params?.data ?? data
+												const dataToLoad = initialEv?.action?.params?.data ?? initialDataFromSchema
 												reloadGraphicWithInitialData(dataToLoad)
 											}}
 										>
@@ -222,19 +306,34 @@ export function GraphicControlNonRealTime({
 									</div>
 								</div>
 
-								{/* Initial Data Schema Form (t = 0 ms) */}
+								{/* Data Schema Form (Update Action before Playhead, or Initial Data) */}
 								{manifest.schema && (
 									<div className="control-section-card rounded p-3">
 										<div className="d-flex justify-content-between align-items-center mb-2">
 											<div className="d-flex align-items-center gap-2">
-												<h6 className="section-card-title mb-0">Initial Data</h6>
-												<Badge bg="secondary" className="fs-8">
-													t = 0 ms
+												<h6 className="section-card-title mb-0">
+													{activeUpdateAction ? 'Update Data' : 'Initial Data'}
+												</h6>
+												<Badge
+													bg={activeUpdateAction ? 'success' : 'secondary'}
+													className="fs-8 font-monospace"
+												>
+													t = {activeUpdateAction ? activeUpdateAction.item.timestamp.toLocaleString() : 0} ms
 												</Badge>
 											</div>
+											<span className="text-muted fs-8">
+												{activeUpdateAction
+													? `Editing update-data-action at ${activeUpdateAction.item.timestamp.toLocaleString()} ms`
+													: 'Editing initial data (t = 0 ms)'}
+											</span>
 										</div>
 										<div className="graphics-manifest-schema m-0">
-											<OGrafForm schema={manifest.schema} data={data} setData={onDataSave} />
+											<OGrafForm
+												key={formKey}
+												schema={manifest.schema}
+												data={currentFormData}
+												setData={onDataSave}
+											/>
 										</div>
 									</div>
 								)}
@@ -265,7 +364,7 @@ export function GraphicControlNonRealTime({
 												variant="success"
 												className="fw-semibold"
 												onClick={() => {
-													addToSchedule(currentPlayTime, 'updateAction', { data })
+													addToSchedule(currentPlayTime, 'updateAction', { data: currentFormData })
 												}}
 											>
 												+ Add Update
