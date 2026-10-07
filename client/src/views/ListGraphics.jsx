@@ -7,6 +7,9 @@ import { ThumbnailPreview } from '../components/common/ThumbnailPreview.jsx'
 import { RetryImage } from '../components/common/RetryImage.jsx'
 import { IssueBadgeList, getGraphicIssueCounts } from '../components/common/IssueBadgeList.jsx'
 import { GraphicIssues } from '../components/GraphicIssues.jsx'
+import { AllGraphicsIssuesSection } from '../components/AllGraphicsIssuesSection.jsx'
+import { ThemeContext } from '../contexts/ThemeContext.jsx'
+import { computeGraphicDateColors } from '../lib/graphic/modifiedDateColors.js'
 import {
 	ThumbnailGeneratorSection,
 	loadPersistedSettings,
@@ -16,8 +19,13 @@ import {
 	isGraphicMissingConfiguredResolutions,
 } from '../components/ThumbnailGeneratorSection.jsx'
 import { fileHandler } from '../FileHandler.js'
-import { generateThumbnailsForGraphic } from '../lib/ThumbnailGenerator.js'
+import {
+	generateThumbnailsForGraphic,
+	getOutdatedThumbnailsForGraphic,
+	replaceOutdatedThumbnailsForGraphic,
+} from '../lib/ThumbnailGenerator.js'
 import { graphicResourcePath } from '../lib/lib.js'
+import { ManualThumbnailModal } from '../components/ManualThumbnailModal.jsx'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
 	faArrowsRotate,
@@ -31,6 +39,7 @@ import {
 	faTriangleExclamation,
 	faClock,
 	faFolderOpen,
+	faPlus,
 } from '@fortawesome/free-solid-svg-icons'
 
 function formatLastModified(timestamp) {
@@ -85,11 +94,27 @@ function StatusBadge({ status }) {
 	}
 }
 
-function GenerateButton({ graphic, settings, onGenerate, isRunning }) {
+function GenerateButton({ graphic, settings, onGenerate, onReplace, isOutdated = false, isRunning }) {
 	if (!graphic.manifest) {
 		return (
 			<Button size="sm" variant="outline-secondary" disabled title="Cannot generate: manifest has errors">
 				Generate
+			</Button>
+		)
+	}
+
+	if (isOutdated) {
+		return (
+			<Button
+				size="sm"
+				variant="outline-warning"
+				className="btn-row-generate"
+				onClick={() => onReplace?.(graphic)}
+				disabled={isRunning}
+				title="Existing thumbnail(s) are older than graphic files — click to replace"
+			>
+				<FontAwesomeIcon icon={faRotateRight} className="me-1" />
+				Replace
 			</Button>
 		)
 	}
@@ -127,9 +152,39 @@ function loadPersistedViewMode() {
 	return 'table'
 }
 
-export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsFolderName, graphicsSource = 'local' }) {
+const SORT_STORAGE_KEY = 'ograf-graphics-sort'
+const VALID_SORT_FIELDS = ['name', 'path', 'capabilities', 'lastModified']
+const VALID_SORT_DIRECTIONS = ['asc', 'desc']
+
+function loadPersistedSort() {
+	try {
+		const saved = localStorage.getItem(SORT_STORAGE_KEY)
+		if (saved) {
+			const parsed = JSON.parse(saved)
+			if (parsed && VALID_SORT_FIELDS.includes(parsed.field) && VALID_SORT_DIRECTIONS.includes(parsed.direction)) {
+				return parsed
+			}
+		}
+	} catch (_) {}
+	return { field: 'name', direction: 'asc' }
+}
+
+export function ListGraphics({
+	graphicsList,
+	onRefresh,
+	onCloseFolder,
+	graphicsFolderName,
+	graphicsSource = 'local',
+	searchQuery: controlledSearchQuery,
+	onSearchQueryChange,
+}) {
 	const navigate = useNavigate()
 	const [searchParams, setSearchParams] = useSearchParams()
+
+	const { isDark } = React.useContext(ThemeContext)
+	const dateColorMapper = React.useMemo(() => {
+		return computeGraphicDateColors(graphicsList, isDark)
+	}, [graphicsList, isDark])
 
 	const isGeneratorOpen = searchParams.get('generator') === 'true'
 
@@ -171,9 +226,84 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 		[isGeneratorOpen]
 	)
 
-	const [searchQuery, setSearchQuery] = React.useState('')
-	const [sortField, setSortField] = React.useState('name')
-	const [sortDirection, setSortDirection] = React.useState('asc')
+	const [localSearchQuery, setLocalSearchQuery] = React.useState('')
+	const searchQuery = controlledSearchQuery !== undefined ? controlledSearchQuery : localSearchQuery
+	const setSearchQuery = onSearchQueryChange || setLocalSearchQuery
+	const [sortState, setSortState] = React.useState(loadPersistedSort)
+	const sortField = sortState.field
+	const sortDirection = sortState.direction
+
+	const handleSort = React.useCallback((field) => {
+		setSortState((prev) => {
+			const nextDirection =
+				prev.field === field ? (prev.direction === 'asc' ? 'desc' : 'asc') : field === 'lastModified' ? 'desc' : 'asc'
+			const next = { field, direction: nextDirection }
+			try {
+				localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next))
+			} catch (_) {}
+			return next
+		})
+	}, [])
+
+	const handleSortChange = React.useCallback((field, direction) => {
+		const next = { field, direction }
+		setSortState(next)
+		try {
+			localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next))
+		} catch (_) {}
+	}, [])
+
+	// Filter graphics by search query (name, path, id)
+	const filteredGraphics = React.useMemo(() => {
+		if (!graphicsList) return []
+		const q = searchQuery.trim().toLowerCase()
+		if (!q) return graphicsList
+
+		return graphicsList.filter((g) => {
+			const name = (g.manifest?.name || '').toLowerCase()
+			const path = (g.path || '').toLowerCase()
+			const id = (g.manifest?.id || '').toLowerCase()
+			return name.includes(q) || path.includes(q) || id.includes(q)
+		})
+	}, [graphicsList, searchQuery])
+
+	// Sort filtered graphics (matches table display order)
+	const sortedGraphics = React.useMemo(() => {
+		const list = [...filteredGraphics]
+
+		list.sort((a, b) => {
+			let aVal, bVal
+
+			switch (sortField) {
+				case 'name':
+					aVal = (a.manifest?.name || a.path || '').toLowerCase()
+					bVal = (b.manifest?.name || b.path || '').toLowerCase()
+					break
+				case 'lastModified':
+					aVal = a.lastModified || 0
+					bVal = b.lastModified || 0
+					break
+				case 'capabilities': {
+					const getRank = (g) => (g.manifest?.supportsRealTime ? 2 : 0) + (g.manifest?.supportsNonRealTime ? 1 : 0)
+					aVal = getRank(a)
+					bVal = getRank(b)
+					break
+				}
+				case 'path':
+				default:
+					aVal = (a.path || '').toLowerCase()
+					bVal = (b.path || '').toLowerCase()
+					break
+			}
+
+			if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+			if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+			return 0
+		})
+
+		return list
+	}, [filteredGraphics, sortField, sortDirection])
+
 	const [allIssuesExpanded, setAllIssuesExpanded] = React.useState(false)
 	const [expandedIssueRows, setExpandedIssueRows] = React.useState(new Set())
 	const [isRefreshing, setIsRefreshing] = React.useState(false)
@@ -217,6 +347,47 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 		setGlobalLog([])
 	}, [])
 
+	// ─── Outdated Thumbnails Tracking ─────────────────────────────────────────
+	const [outdatedGraphicsCount, setOutdatedGraphicsCount] = React.useState(0)
+	const [outdatedGraphicsSet, setOutdatedGraphicsSet] = React.useState(() => new Set())
+
+	const checkOutdatedThumbnails = React.useCallback(async () => {
+		if (!graphicsList?.length) {
+			setOutdatedGraphicsSet(new Set())
+			setOutdatedGraphicsCount(0)
+			return
+		}
+		const outdatedSet = new Set()
+		for (const graphic of graphicsList) {
+			if (!graphic.manifest?.thumbnails?.length) continue
+			try {
+				const outdated = await getOutdatedThumbnailsForGraphic(graphic, graphicsList)
+				if (outdated.length > 0) {
+					outdatedSet.add(graphic.path)
+				}
+			} catch (_) {}
+		}
+		setOutdatedGraphicsSet(outdatedSet)
+		setOutdatedGraphicsCount(outdatedSet.size)
+	}, [graphicsList])
+
+	React.useEffect(() => {
+		let cancelled = false
+		checkOutdatedThumbnails()
+		return () => {
+			cancelled = true
+		}
+	}, [checkOutdatedThumbnails, previewVersions, isGeneratorOpen])
+
+	React.useEffect(() => {
+		if (typeof fileHandler !== 'undefined' && fileHandler?.listenToFileChanges) {
+			const sub = fileHandler.listenToFileChanges(() => {
+				checkOutdatedThumbnails()
+			})
+			return () => sub.stop()
+		}
+	}, [checkOutdatedThumbnails])
+
 	// ─── Core Generation Runner ───────────────────────────────────────────────
 	const runGeneration = React.useCallback(
 		async (graphicsToProcess, force = false) => {
@@ -230,10 +401,28 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 			let errors = 0
 			setBatchProgress({ total, processed: 0, doneCount: 0, errorCount: 0 })
 
+			// Mark all graphics in this run as pending initially
+			setStatuses((prev) => {
+				const next = { ...prev }
+				for (const g of graphicsToProcess) {
+					next[g.path] = { status: 'pending', message: 'Pending…' }
+				}
+				return next
+			})
+
 			try {
 				for (const graphic of graphicsToProcess) {
 					if (abortRef.current) {
 						appendLog('[Cancelled] Generation cancelled by user.')
+						setStatuses((prev) => {
+							const next = { ...prev }
+							for (const g of graphicsToProcess) {
+								if (next[g.path]?.status === 'pending') {
+									next[g.path] = { status: 'idle', message: 'Cancelled' }
+								}
+							}
+							return next
+						})
 						break
 					}
 
@@ -336,20 +525,183 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 	)
 
 	const handleGenerateAll = React.useCallback(() => {
-		runGeneration(graphicsList ?? [], false)
-	}, [runGeneration, graphicsList])
+		runGeneration(sortedGraphics ?? [], false)
+	}, [runGeneration, sortedGraphics])
 
 	const handleGenerateWithoutThumbnails = React.useCallback(() => {
-		if (!graphicsList) return
-		const noThumbGraphics = graphicsList.filter((g) => hasNoThumbnails(g))
+		if (!sortedGraphics) return
+		const noThumbGraphics = sortedGraphics.filter((g) => hasNoThumbnails(g))
 		runGeneration(noThumbGraphics, false)
-	}, [runGeneration, graphicsList])
+	}, [runGeneration, sortedGraphics])
 
 	const handleGenerateMissingResolutions = React.useCallback(() => {
-		if (!graphicsList) return
-		const missingResGraphics = graphicsList.filter((g) => isGraphicMissingConfiguredResolutions(g, settings))
+		if (!sortedGraphics) return
+		const missingResGraphics = sortedGraphics.filter((g) => isGraphicMissingConfiguredResolutions(g, settings))
 		runGeneration(missingResGraphics, false)
-	}, [runGeneration, graphicsList, settings])
+	}, [runGeneration, sortedGraphics, settings])
+
+	const runReplaceThumbnails = React.useCallback(
+		async (graphicsToProcess) => {
+			if (isRunning || !graphicsToProcess?.length) return
+			setIsRunning(true)
+			abortRef.current = false
+
+			appendLog('Checking for outdated thumbnails…')
+
+			const targets = []
+			for (const graphic of graphicsToProcess) {
+				if (!graphic.manifest) continue
+				try {
+					const outdated = await getOutdatedThumbnailsForGraphic(graphic, graphicsList)
+					if (outdated.length > 0) {
+						targets.push({ graphic, outdated })
+					}
+				} catch (err) {
+					console.warn('Error checking outdated thumbnails for', graphic.path, err)
+				}
+			}
+
+			if (targets.length === 0) {
+				appendLog('✓ All existing thumbnails are up to date.')
+				setIsRunning(false)
+				return
+			}
+
+			const total = targets.length
+			let processed = 0
+			let done = 0
+			let errors = 0
+			setBatchProgress({ total, processed: 0, doneCount: 0, errorCount: 0 })
+
+			// Mark all target graphics as pending
+			setStatuses((prev) => {
+				const next = { ...prev }
+				for (const { graphic } of targets) {
+					next[graphic.path] = { status: 'pending', message: 'Pending…' }
+				}
+				return next
+			})
+
+			appendLog(`Found ${total} graphic(s) with outdated thumbnails to replace.`)
+
+			try {
+				for (const { graphic, outdated } of targets) {
+					if (abortRef.current) {
+						appendLog('[Cancelled] Thumbnail replacement cancelled by user.')
+						setStatuses((prev) => {
+							const next = { ...prev }
+							for (const { graphic: g } of targets) {
+								if (next[g.path]?.status === 'pending') {
+									next[g.path] = { status: 'idle', message: 'Cancelled' }
+								}
+							}
+							return next
+						})
+						break
+					}
+
+					setGraphicStatus(graphic.path, {
+						status: 'running',
+						message: `Replacing ${outdated.length} thumbnail(s)…`,
+					})
+					appendLog(
+						`Replacing ${outdated.length} outdated thumbnail(s) for "${graphic.manifest.name || graphic.path}"…`
+					)
+
+					try {
+						const replacedResults = await replaceOutdatedThumbnailsForGraphic({
+							graphic,
+							outdatedThumbnails: outdated,
+							thumbnailSettings: settings,
+							onProgress: (msg) => {
+								setGraphicStatus(graphic.path, { status: 'running', message: msg })
+								appendLog(`  ${msg}`)
+							},
+							writeFileFn: async (path, blob) => {
+								await fileHandler.writeFile(path, blob)
+							},
+						})
+
+						if (abortRef.current) {
+							appendLog('[Cancelled] Thumbnail replacement cancelled.')
+							break
+						}
+
+						// Merge resolution back into manifest for any replaced thumbnails
+						const updatedThumbnails = (graphic.manifest.thumbnails || []).map((existing) => {
+							const existingFile = typeof existing === 'string' ? existing : existing.file
+							const replaced = replacedResults.find((r) => r.file === existingFile)
+							if (replaced) {
+								return typeof existing === 'object'
+									? { ...existing, resolution: replaced.resolution }
+									: { file: replaced.file, resolution: replaced.resolution }
+							}
+							return existing
+						})
+
+						const updatedManifest = {
+							...graphic.manifest,
+							thumbnails: updatedThumbnails,
+						}
+						await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+						graphic.manifest = updatedManifest
+
+						setGraphicStatus(graphic.path, {
+							status: 'done',
+							message: `Replaced ${replacedResults.length} thumbnail(s)`,
+						})
+						bumpPreviewVersion(graphic.path)
+						appendLog(`✓ "${graphic.manifest.name || graphic.path}" — ${replacedResults.length} thumbnail(s) replaced`)
+
+						done++
+						processed++
+						setBatchProgress({ total, processed, doneCount: done, errorCount: errors })
+					} catch (err) {
+						console.error(err)
+						setGraphicStatus(graphic.path, { status: 'error', message: err.message })
+						appendLog(`✗ Error for "${graphic.manifest?.name ?? graphic.path}": ${err.message}`)
+
+						errors++
+						processed++
+						setBatchProgress({ total, processed, doneCount: done, errorCount: errors })
+					}
+				}
+			} catch (err) {
+				console.error(err)
+				appendLog(`Session error: ${err.message}`)
+			} finally {
+				setIsRunning(false)
+				abortRef.current = false
+				appendLog('Done.')
+				checkOutdatedThumbnails()
+				if (onRefresh) {
+					try {
+						await onRefresh()
+					} catch (_) {}
+				}
+			}
+		},
+		[
+			isRunning,
+			settings,
+			graphicsList,
+			setGraphicStatus,
+			bumpPreviewVersion,
+			appendLog,
+			checkOutdatedThumbnails,
+			onRefresh,
+		]
+	)
+
+	const handleReplaceThumbnails = React.useCallback(() => {
+		runReplaceThumbnails(sortedGraphics ?? [])
+	}, [runReplaceThumbnails, sortedGraphics])
+
+	const displayedOutdatedCount = React.useMemo(() => {
+		return (sortedGraphics ?? []).filter((g) => outdatedGraphicsSet.has(g.path)).length
+	}, [sortedGraphics, outdatedGraphicsSet])
+
+	const handleReplaceOne = React.useCallback((graphic) => runReplaceThumbnails([graphic]), [runReplaceThumbnails])
 
 	const handleCancelGeneration = React.useCallback(() => {
 		abortRef.current = true
@@ -393,12 +745,51 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 		[isRunning, bumpPreviewVersion, appendLog, onRefresh]
 	)
 
+	// ─── Manual Thumbnail ─────────────────────────────────────────────────────
+	const [manualThumbnailTarget, setManualThumbnailTarget] = React.useState(null)
+
+	const handleSaveManualThumbnail = React.useCallback(
+		async ({ graphic, relativeFilePath, resolution, blob }) => {
+			await fileHandler.writeFile(graphic.folderPath + relativeFilePath, blob)
+
+			const newEntry = { file: relativeFilePath, resolution }
+			const existing = graphic.manifest?.thumbnails ?? []
+			let replaced = false
+			const thumbnails = existing.map((t) => {
+				const tf = typeof t === 'string' ? t : t.file
+				if (tf === relativeFilePath) {
+					replaced = true
+					return typeof t === 'object' ? { ...t, ...newEntry } : newEntry
+				}
+				return t
+			})
+			if (!replaced) thumbnails.push(newEntry)
+
+			const updatedManifest = { ...graphic.manifest, thumbnails }
+			await fileHandler.writeManifest(graphic, updatedManifest, graphic.manifestFormatting)
+			graphic.manifest = updatedManifest
+			bumpPreviewVersion(graphic.path)
+			appendLog(
+				`✓ Added thumbnail "${relativeFilePath}" (${resolution.width}×${resolution.height}) for "${
+					graphic.manifest?.name || graphic.path
+				}"`
+			)
+
+			if (onRefresh) {
+				try {
+					await onRefresh()
+				} catch (_) {}
+			}
+		},
+		[bumpPreviewVersion, appendLog, onRefresh]
+	)
+
 	const handleDeleteAllThumbnails = React.useCallback(async () => {
-		if (isRunning || !graphicsList?.length) return
+		if (isRunning || !sortedGraphics?.length) return
 		setIsRunning(true)
-		appendLog('Deleting all thumbnails across graphics…')
+		appendLog('Deleting all thumbnails across displayed graphics…')
 		try {
-			for (const graphic of graphicsList) {
+			for (const graphic of sortedGraphics) {
 				if (!graphic.manifest?.thumbnails?.length) continue
 				for (const t of graphic.manifest.thumbnails) {
 					const file = typeof t === 'string' ? t : t.file
@@ -428,7 +819,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 				} catch (_) {}
 			}
 		}
-	}, [isRunning, graphicsList, bumpPreviewVersion, appendLog, onRefresh])
+	}, [isRunning, sortedGraphics, bumpPreviewVersion, appendLog, onRefresh])
 
 	const toggleGenerator = React.useCallback(() => {
 		const next = new URLSearchParams(searchParams)
@@ -452,67 +843,6 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 
 	const isRemote = graphicsSource === 'remote'
 
-	// Sort handler
-	const handleSort = (field) => {
-		if (sortField === field) {
-			setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-		} else {
-			setSortField(field)
-			setSortDirection('asc')
-		}
-	}
-
-	// Filter graphics by search query (name, path, id)
-	const filteredGraphics = React.useMemo(() => {
-		if (!graphicsList) return []
-		const q = searchQuery.trim().toLowerCase()
-		if (!q) return graphicsList
-
-		return graphicsList.filter((g) => {
-			const name = (g.manifest?.name || '').toLowerCase()
-			const path = (g.path || '').toLowerCase()
-			const id = (g.manifest?.id || '').toLowerCase()
-			return name.includes(q) || path.includes(q) || id.includes(q)
-		})
-	}, [graphicsList, searchQuery])
-
-	// Sort filtered graphics
-	const sortedGraphics = React.useMemo(() => {
-		const list = [...filteredGraphics]
-
-		list.sort((a, b) => {
-			let aVal, bVal
-
-			switch (sortField) {
-				case 'name':
-					aVal = (a.manifest?.name || a.path || '').toLowerCase()
-					bVal = (b.manifest?.name || b.path || '').toLowerCase()
-					break
-				case 'lastModified':
-					aVal = a.lastModified || 0
-					bVal = b.lastModified || 0
-					break
-				case 'capabilities': {
-					const getRank = (g) => (g.manifest?.supportsRealTime ? 2 : 0) + (g.manifest?.supportsNonRealTime ? 1 : 0)
-					aVal = getRank(a)
-					bVal = getRank(b)
-					break
-				}
-				case 'path':
-				default:
-					aVal = (a.path || '').toLowerCase()
-					bVal = (b.path || '').toLowerCase()
-					break
-			}
-
-			if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-			if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-			return 0
-		})
-
-		return list
-	}, [filteredGraphics, sortField, sortDirection])
-
 	// Calculate graphics with issues count to decide if "Expand all issues" button is shown
 	const graphicsWithIssuesCount = React.useMemo(() => {
 		if (!graphicsList) return 0
@@ -521,8 +851,12 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 
 	const renderSortHeader = (field, label, className = '') => {
 		const isActive = sortField === field
+		const headerTitle =
+			field === 'lastModified'
+				? `Click to sort by ${label} • Background: Toned-down Blue (Today), Grayish (This week), Default (Older)`
+				: `Click to sort by ${label}`
 		return (
-			<th onClick={() => handleSort(field)} className={`sortable-th ${className}`} title={`Click to sort by ${label}`}>
+			<th onClick={() => handleSort(field)} className={`sortable-th ${className}`} title={headerTitle}>
 				<span>{label}</span>
 				<span className={`sort-indicator ${isActive ? 'active' : ''}`}>
 					{isActive ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
@@ -581,12 +915,12 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 								<Button
 									variant="outline-secondary"
 									size="sm"
-									className="toolbar-btn"
+									className="toolbar-btn toolbar-btn-refresh"
 									onClick={handleRefresh}
 									disabled={isRefreshing}
 									title="Refresh graphics from disk / remote"
 								>
-									<FontAwesomeIcon icon={faArrowsRotate} spin={isRefreshing} />{' '}
+									<FontAwesomeIcon icon={faArrowsRotate} spin={isRefreshing} className="refresh-icon" />{' '}
 									{isRefreshing ? 'Refreshing…' : 'Refresh'}
 								</Button>
 							)}
@@ -636,6 +970,30 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 								</button>
 							)}
 
+							{/* Grid View Sort Selector */}
+							{viewMode === 'grid' && (
+								<div className="grid-sort-controls d-flex align-items-center">
+									<select
+										id="gridSortSelect"
+										className="form-select form-select-sm toolbar-select"
+										value={`${sortField}-${sortDirection}`}
+										onChange={(e) => {
+											const [f, d] = e.target.value.split('-')
+											handleSortChange(f, d)
+										}}
+										title="Sort graphics in grid view"
+									>
+										<option value="name-asc">Sort: Name (A → Z)</option>
+										<option value="name-desc">Sort: Name (Z → A)</option>
+										<option value="lastModified-desc">Sort: Modified (Newest)</option>
+										<option value="lastModified-asc">Sort: Modified (Oldest)</option>
+										<option value="capabilities-desc">Sort: Capabilities</option>
+										<option value="path-asc">Sort: Path (A → Z)</option>
+										<option value="path-desc">Sort: Path (Z → A)</option>
+									</select>
+								</div>
+							)}
+
 							{/* View Mode Toggle: List vs Grid */}
 							<div className="view-mode-toggle" role="group" aria-label="View mode">
 								<button
@@ -662,7 +1020,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 				{/* ── Collapsible Thumbnail Generator Section ── */}
 				{isGeneratorOpen && !isRemote && (
 					<ThumbnailGeneratorSection
-						graphicsList={graphicsList}
+						graphicsList={sortedGraphics}
 						settings={settings}
 						onSettingsChange={onSettingsChange}
 						isRunning={isRunning}
@@ -674,6 +1032,8 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 						onGenerateAll={handleGenerateAll}
 						onGenerateWithoutThumbnails={handleGenerateWithoutThumbnails}
 						onGenerateMissingResolutions={handleGenerateMissingResolutions}
+						onReplaceThumbnails={handleReplaceThumbnails}
+						outdatedCount={displayedOutdatedCount}
 						onCancelGeneration={handleCancelGeneration}
 						onDeleteAllThumbnails={handleDeleteAllThumbnails}
 						onClose={toggleGenerator}
@@ -697,10 +1057,10 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 											{renderSortHeader('name', 'Name')}
 											{renderSortHeader('path', 'Path')}
 											{!isGeneratorOpen && renderSortHeader('capabilities', 'Capabilities')}
-											{!isGeneratorOpen && renderSortHeader('lastModified', 'Modified')}
+											{renderSortHeader('lastModified', 'Modified')}
 											{!isGeneratorOpen && <th style={{ minWidth: '160px' }}>Validation</th>}
 											{isGeneratorOpen && <th style={{ width: '120px' }}>Status</th>}
-											<th style={{ width: isGeneratorOpen ? '160px' : '90px' }}>Actions</th>
+											<th style={{ width: isGeneratorOpen ? '320px' : '90px' }}>Actions</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -726,6 +1086,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 											const status = statuses[graphic.path] ?? { status: 'idle', message: '' }
 											const existingThumbs = graphic.manifest?.thumbnails ?? []
 											const isRowExpanded = allIssuesExpanded || expandedIssueRows.has(graphic.path)
+											const dateInfo = dateColorMapper.getColorInfo(graphic.path)
 
 											return (
 												<React.Fragment key={graphic.path}>
@@ -832,10 +1193,18 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 															</td>
 														)}
 
-														{/* Modified Date (Hidden in thumbnail mode) */}
-														{!isGeneratorOpen && (
-															<td className="graphic-date-cell">{formatLastModified(graphic.lastModified)}</td>
-														)}
+														{/* Modified Date  */}
+														{
+															<td
+																className="graphic-date-cell"
+																style={{
+																	backgroundColor: dateInfo.cellBg,
+																}}
+																title={dateInfo.tooltip}
+															>
+																{formatLastModified(graphic.lastModified)}
+															</td>
+														}
 
 														{/* Issues (Hidden in thumbnail mode) */}
 														{!isGeneratorOpen && (
@@ -873,9 +1242,28 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 																	<GenerateButton
 																		graphic={graphic}
 																		settings={settings}
+																		isOutdated={outdatedGraphicsSet.has(graphic.path)}
 																		onGenerate={(force) => handleGenerateOne(graphic, force)}
+																		onReplace={() => handleReplaceOne(graphic)}
 																		isRunning={isRunning}
 																	/>
+																)}
+																{isGeneratorOpen && (
+																	<Button
+																		size="sm"
+																		variant="outline-secondary"
+																		className="btn-row-manual-thumbnail"
+																		onClick={() => setManualThumbnailTarget(graphic)}
+																		disabled={isRunning || !graphic.manifest}
+																		title={
+																			!graphic.manifest
+																				? 'Cannot add thumbnail: manifest has errors'
+																				: 'Add a thumbnail manually by dropping or pasting an image'
+																		}
+																	>
+																		<FontAwesomeIcon icon={faPlus} className="me-1" />
+																		Add thumbnail manually
+																	</Button>
 																)}
 																<Link to={`/graphic${graphic.path}`}>
 																	<Button variant="primary" size="sm" className="action-btn">
@@ -926,6 +1314,7 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 							{sortedGraphics.map((graphic) => {
 								const hasVersion = !!graphic.manifest?.version
 								const status = statuses[graphic.path] ?? { status: 'idle', message: '' }
+								const dateInfo = dateColorMapper.getColorInfo(graphic.path)
 
 								return (
 									<div
@@ -978,7 +1367,19 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 										)}
 
 										<div className="card-footer-row">
-											<span className="card-date">
+											<span
+												className="card-date"
+												style={
+													dateInfo.cellBg !== 'transparent'
+														? {
+																backgroundColor: dateInfo.cellBg,
+																padding: '2px 6px',
+																borderRadius: '4px',
+														  }
+														: undefined
+												}
+												title={dateInfo.tooltip}
+											>
 												<FontAwesomeIcon icon={faClock} className="me-1 text-muted" />
 												{formatLastModified(graphic.lastModified)}
 											</span>
@@ -1037,7 +1438,24 @@ export function ListGraphics({ graphicsList, onRefresh, onCloseFolder, graphicsF
 						</div>
 					</div>
 				)}
+
+				{/* ── Expandable All Issues Section at the bottom of the list view ── */}
+				{graphicsList && graphicsList.length > 0 && (
+					<AllGraphicsIssuesSection
+						graphicsList={graphicsList}
+						graphicsFolderName={graphicsFolderName}
+						onRefresh={onRefresh}
+						searchQuery={searchQuery}
+					/>
+				)}
 			</main>
+
+			<ManualThumbnailModal
+				show={!!manualThumbnailTarget}
+				graphic={manualThumbnailTarget}
+				onHide={() => setManualThumbnailTarget(null)}
+				onSave={handleSaveManualThumbnail}
+			/>
 		</div>
 	)
 }

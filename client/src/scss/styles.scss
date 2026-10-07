@@ -50,6 +50,11 @@ $info: #a1a1aa;
 $warning: #b45309;
 $danger: #b91c1c;
 
+// Form check & active component colors
+$form-check-input-checked-bg-color: #3b74f9;
+$form-check-input-checked-border-color: #3b74f9;
+$form-check-input-checked-color: #ffffff;
+
 // Required
 @import 'bootstrap/scss/variables';
 @import 'bootstrap/scss/variables-dark';
@@ -173,6 +178,24 @@ p,
 	--app-accent-cyan: #23a2c3;
 	--app-accent-cyan-subtle: rgba(35, 162, 195, 0.16);
 	--app-accent-cyan-border: rgba(35, 162, 195, 0.35);
+
+	/* Form Controls: Checkbox, Radio, Switch */
+	--app-control-bg: #1c1c20;
+	--app-control-border: rgba(255, 255, 255, 0.32);
+	--app-control-border-hover: rgba(255, 255, 255, 0.55);
+	--app-control-checked-bg: var(--app-accent-blue);
+	--app-control-checked-border: var(--app-accent-blue);
+	--app-control-checked-color: #ffffff;
+	--app-control-focus-ring: 0 0 0 3px rgba(59, 116, 249, 0.35);
+
+	/* Switch specific */
+	--app-switch-track-bg: #27272a;
+	--app-switch-track-border: rgba(255, 255, 255, 0.28);
+	--app-switch-track-hover-border: rgba(255, 255, 255, 0.5);
+	--app-switch-thumb-svg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2.8' fill='%23f4f4f5'/%3e%3c/svg%3e");
+	--app-switch-checked-track-bg: var(--app-accent-blue);
+	--app-switch-checked-track-border: var(--app-accent-blue);
+	--app-switch-checked-thumb-svg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2.8' fill='%23ffffff'/%3e%3c/svg%3e");
 }
 
 [data-bs-theme='light'] {
@@ -226,12 +249,31 @@ p,
 	--app-accent-cyan: #167a94;
 	--app-accent-cyan-subtle: rgba(22, 122, 148, 0.1);
 	--app-accent-cyan-border: rgba(22, 122, 148, 0.28);
+
+	/* Form Controls: Checkbox, Radio, Switch */
+	--app-control-bg: #ffffff;
+	--app-control-border: #94a3b8;
+	--app-control-border-hover: #64748b;
+	--app-control-checked-bg: var(--app-accent-blue);
+	--app-control-checked-border: var(--app-accent-blue);
+	--app-control-checked-color: #ffffff;
+	--app-control-focus-ring: 0 0 0 3px rgba(35, 82, 195, 0.25);
+
+	/* Switch specific */
+	--app-switch-track-bg: #e2e8f0;
+	--app-switch-track-border: #cbd5e1;
+	--app-switch-track-hover-border: #94a3b8;
+	--app-switch-thumb-svg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2.8' fill='%23ffffff' stroke='%2394a3b8' stroke-width='0.5'/%3e%3c/svg%3e");
+	--app-switch-checked-track-bg: var(--app-accent-blue);
+	--app-switch-checked-track-border: var(--app-accent-blue);
+	--app-switch-checked-thumb-svg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2.8' fill='%23ffffff'/%3e%3c/svg%3e");
 }
 
 //
 // Custom styles
 //
 @import './ograf-form.scss';
+@import './form-controls.scss';
 @import './common-ui.scss';
 @import './initial-dashboard.scss';
 @import './list-graphics.scss';

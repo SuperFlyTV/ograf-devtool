@@ -1,5 +1,18 @@
 superflytv-ograf-form {
+	display: block;
+	max-width: 100%;
+	overflow: auto;
+
 	input[type='number'] {
 		max-width: 4em;
+	}
+
+	input[type='checkbox'],
+	input[type='radio'] {
+		accent-color: var(--app-accent-blue);
+		cursor: pointer;
+		width: 1.15em;
+		height: 1.15em;
+		vertical-align: middle;
 	}
 }

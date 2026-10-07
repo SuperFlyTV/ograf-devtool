@@ -72,7 +72,7 @@ export const OGrafForm = (props) => {
 	}
 
 	return (
-		<div>
+		<div className={props.className} style={{ overflow: 'auto', ...props.style }}>
 			<superflytv-ograf-form
 				ref={formRef}
 				schema={JSON.stringify(schema)}

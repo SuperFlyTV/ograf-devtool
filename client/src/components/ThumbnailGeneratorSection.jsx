@@ -149,6 +149,8 @@ export function ThumbnailGeneratorSection({
 	onGenerateAll,
 	onGenerateWithoutThumbnails,
 	onGenerateMissingResolutions,
+	onReplaceThumbnails,
+	outdatedCount = 0,
 	onCancelGeneration,
 	onDeleteAllThumbnails,
 	onClose,
@@ -647,27 +649,31 @@ export function ThumbnailGeneratorSection({
 									<FontAwesomeIcon icon={faBolt} /> {missingResButtonLabel} ({missingResolutionsCount})
 								</Button>
 
-								{/* 4. Cancel or Delete All */}
-								{isRunning ? (
-									<Button
-										variant="danger"
-										className="btn-action-danger"
-										onClick={onCancelGeneration}
-										title="Cancel ongoing thumbnail generation"
-									>
-										<FontAwesomeIcon icon={faStop} /> Cancel Generation
-									</Button>
-								) : (
-									<Button
-										variant="outline-danger"
-										className="btn-action-danger"
-										onClick={() => setShowDeleteModal(true)}
-										disabled={totalThumbnails === 0}
-										title="Delete all generated thumbnails across all graphics"
-									>
-										<FontAwesomeIcon icon={faTrashCan} /> Delete All ({totalThumbnails})
-									</Button>
-								)}
+								{/* 4. Replace Outdated Thumbnails */}
+								<Button
+									variant="outline-warning"
+									className="btn-action-secondary btn-action-replace"
+									onClick={onReplaceThumbnails}
+									disabled={isRunning || outdatedCount === 0}
+									title={
+										outdatedCount > 0
+											? `Regenerate existing thumbnails that are older than other graphic files (${outdatedCount} graphic(s))`
+											: 'All existing thumbnails are up to date with graphic files'
+									}
+								>
+									<FontAwesomeIcon icon={faRotateRight} /> Replace old ({outdatedCount})
+								</Button>
+
+								{/* 5. Delete All */}
+								<Button
+									variant="outline-danger"
+									className="btn-action-danger"
+									onClick={() => setShowDeleteModal(true)}
+									disabled={isRunning || totalThumbnails === 0}
+									title="Delete all generated thumbnails across displayed graphics"
+								>
+									<FontAwesomeIcon icon={faTrashCan} /> Delete All ({totalThumbnails})
+								</Button>
 							</div>
 
 							{/* Progress Bar & Status Summary */}
@@ -703,12 +709,26 @@ export function ThumbnailGeneratorSection({
 										</div>
 									</div>
 
-									<ProgressBar
-										animated={isRunning}
-										now={effectiveTotal > 0 ? (effectiveProcessed / effectiveTotal) * 100 : 0}
-										variant={effectiveError > 0 ? 'warning' : 'primary'}
-										className="custom-generator-progressbar"
-									/>
+									<div className="d-flex align-items-center gap-2">
+										<ProgressBar
+											animated={isRunning}
+											now={effectiveTotal > 0 ? (effectiveProcessed / effectiveTotal) * 100 : 0}
+											variant={effectiveError > 0 ? 'warning' : 'primary'}
+											className="custom-generator-progressbar flex-grow-1"
+										/>
+										{isRunning && (
+											<Button
+												variant="outline-danger"
+												size="sm"
+												className="btn-cancel-generation-sm"
+												onClick={onCancelGeneration}
+												title="Cancel ongoing thumbnail generation"
+											>
+												<FontAwesomeIcon icon={faStop} className="me-1" />
+												Cancel
+											</Button>
+										)}
+									</div>
 								</div>
 							)}
 

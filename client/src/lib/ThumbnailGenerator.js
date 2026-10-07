@@ -2,6 +2,7 @@ import { getDefaultDataFromSchema } from 'ograf-form'
 import { captureSingleGraphicFrame, createGraphicRenderSession } from './VideoRenderer.js'
 import { createAnimatedWebpFromCanvases } from './encoders/webpEncoder.js'
 import { createAnimatedGifFromCanvases } from './encoders/gifEncoder.js'
+import { fileHandler } from '../FileHandler.js'
 
 /**
  * Generate thumbnails for a single ograf graphic.
@@ -360,11 +361,381 @@ function cropTransparentBorder(canvas, threshold = 8) {
 }
 
 /** Promise wrapper for HTMLCanvasElement.toBlob() */
-function canvasToBlob(canvas, mimeType) {
+function canvasToBlob(canvas, mimeType, quality) {
 	return new Promise((resolve, reject) => {
-		canvas.toBlob((blob) => {
-			if (blob) resolve(blob)
-			else reject(new Error('canvas.toBlob() returned null'))
-		}, mimeType)
+		canvas.toBlob(
+			(blob) => {
+				if (blob) resolve(blob)
+				else reject(new Error('canvas.toBlob() returned null'))
+			},
+			mimeType,
+			quality
+		)
 	})
+}
+
+function normalizePath(p) {
+	if (!p) return ''
+	return p.startsWith('/') ? p : '/' + p
+}
+
+function isFileBelongingToGraphic(filePath, graphic, allGraphics = []) {
+	const folder = normalizePath(graphic.folderPath || '')
+	if (folder && folder !== '/') {
+		if (!filePath.startsWith(folder)) return false
+	}
+
+	if (allGraphics && allGraphics.length > 1) {
+		for (const other of allGraphics) {
+			if (other === graphic) continue
+			const otherFolder = normalizePath(other.folderPath || '')
+			if (otherFolder && otherFolder !== '/' && otherFolder.length > folder.length) {
+				if (filePath.startsWith(otherFolder)) {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
+}
+
+function isManifestOrThumbnailFile(normPath, graphic, thumbnailFiles) {
+	const manifestPath = normalizePath(graphic.path || '')
+	if (normPath === manifestPath || normPath.endsWith('.ograf.json')) {
+		return true
+	}
+
+	const folder = normalizePath(graphic.folderPath || '')
+
+	// Check against existing thumbnail files listed in manifest
+	for (const thumbFile of thumbnailFiles) {
+		const fullThumbPath = normalizePath((folder === '/' ? '' : folder) + thumbFile.replace(/^\//, ''))
+		if (normPath === fullThumbPath) return true
+	}
+
+	// Check if file is inside a thumbnails/ directory
+	if (normPath.startsWith(folder + 'thumbnails/') || normPath.includes('/thumbnails/')) {
+		return true
+	}
+
+	// Check common thumbnail naming patterns (e.g. thumbnail.png, thumbnail.jpg, thumbnail.webp)
+	const fileName = normPath.split('/').pop().toLowerCase()
+	if (/^thumb(nail)?([-_].+)?\.(png|jpe?g|webp|gif)$/i.test(fileName)) {
+		return true
+	}
+
+	return false
+}
+
+/**
+ * Attempts to inspect real dimensions of an existing thumbnail image file.
+ */
+export async function getThumbnailDimensionsFromFile({ graphic, file, fileHandlerInstance = fileHandler }) {
+	const relativePath = (graphic.folderPath || '') + file.replace(/^\//, '')
+	const normalizedPath = normalizePath(relativePath)
+
+	if (fileHandlerInstance?.readFile) {
+		try {
+			const fileData = await fileHandlerInstance.readFile(normalizedPath)
+			if (fileData?.arrayBuffer) {
+				const blob = new Blob([fileData.arrayBuffer], { type: fileData.type || 'image/png' })
+				const url = URL.createObjectURL(blob)
+				const dims = await new Promise((resolve) => {
+					const img = new Image()
+					img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+					img.onerror = () => resolve(null)
+					img.src = url
+				})
+				URL.revokeObjectURL(url)
+				if (dims?.width && dims?.height) return dims
+			}
+		} catch (_) {}
+	}
+
+	return null
+}
+
+/**
+ * Checks a graphic for existing thumbnails that are older than other files in the graphic
+ * (thumbnails and manifest excluded).
+ *
+ * @param {object} graphic
+ * @param {Array} [allGraphics]
+ * @param {object} [fileHandlerInstance]
+ * @returns {Promise<Array<{
+ *   entry: object|string,
+ *   file: string,
+ *   width: number,
+ *   height: number,
+ *   format: string,
+ *   isAnimated: boolean,
+ *   thumbModified: number,
+ *   latestOtherModified: number
+ * }>>}
+ */
+export async function getOutdatedThumbnailsForGraphic(graphic, allGraphics = [], fileHandlerInstance = fileHandler) {
+	if (!graphic?.manifest) return []
+	const thumbnails = graphic.manifest.thumbnails
+	if (!Array.isArray(thumbnails) || thumbnails.length === 0) return []
+
+	if (!fileHandlerInstance?.files || Object.keys(fileHandlerInstance.files).length === 0) {
+		if (fileHandlerInstance?.discoverFiles) {
+			try {
+				await fileHandlerInstance.discoverFiles()
+			} catch (_) {}
+		}
+	}
+
+	const folder = normalizePath(graphic.folderPath || '')
+
+	// Collect existing thumbnail filenames listed in manifest
+	const thumbnailFiles = new Set()
+	for (const t of thumbnails) {
+		const f = typeof t === 'string' ? t : t?.file
+		if (f) {
+			thumbnailFiles.add(f.replace(/^\//, ''))
+			thumbnailFiles.add(f)
+		}
+	}
+
+	// 1. Find the latest lastModified among "the other files (thumbnails and manifest excluded)"
+	let latestOtherModified = 0
+
+	for (const [key, fileEntry] of Object.entries(fileHandlerInstance?.files || {})) {
+		const normKey = normalizePath(key)
+		if (!isFileBelongingToGraphic(normKey, graphic, allGraphics)) continue
+		if (isManifestOrThumbnailFile(normKey, graphic, thumbnailFiles)) continue
+
+		try {
+			if (fileEntry?.handle?.getFile) {
+				const f = await fileEntry.handle.getFile()
+				if (f.lastModified > latestOtherModified) {
+					latestOtherModified = f.lastModified
+				}
+			}
+		} catch (_) {}
+	}
+
+	// If no other files exist or have timestamps, none can be newer than existing thumbnails
+	if (latestOtherModified === 0) {
+		return []
+	}
+
+	// 2. Compare each existing thumbnail's modified date with latestOtherModified
+	const outdatedThumbnails = []
+
+	for (const t of thumbnails) {
+		const file = typeof t === 'string' ? t : t?.file
+		if (!file) continue
+
+		const fullThumbPath = normalizePath((folder === '/' ? '' : folder) + file.replace(/^\//, ''))
+		const altThumbPath = fullThumbPath.replace(/^\//, '')
+		const entry = fileHandlerInstance?.files?.[fullThumbPath] || fileHandlerInstance?.files?.[altThumbPath]
+
+		let thumbModified = 0
+		if (entry?.handle?.getFile) {
+			try {
+				const f = await entry.handle.getFile()
+				thumbModified = f.lastModified
+			} catch (_) {}
+		}
+
+		// If thumbnail date is older than the other files (or missing on disk), it must be replaced
+		if (thumbModified < latestOtherModified) {
+			const extMatch = file.match(/\.([a-zA-Z0-9]+)(?:\?.*)?$/)
+			const format = extMatch
+				? extMatch[1].toLowerCase()
+				: typeof t === 'object' && t?.format
+				? t.format.toLowerCase()
+				: 'png'
+
+			let width = typeof t === 'object' && typeof t?.resolution?.width === 'number' ? t.resolution.width : 0
+			let height = typeof t === 'object' && typeof t?.resolution?.height === 'number' ? t.resolution.height : 0
+
+			if (!width || !height) {
+				const resMatch = file.match(/(\d+)x(\d+)/)
+				if (resMatch) {
+					width = parseInt(resMatch[1], 10)
+					height = parseInt(resMatch[2], 10)
+				}
+			}
+
+			if (!width || !height) {
+				const dims = await getThumbnailDimensionsFromFile({ graphic, file, fileHandlerInstance })
+				if (dims?.width && dims?.height) {
+					width = dims.width
+					height = dims.height
+				}
+			}
+
+			if (!width || !height) {
+				width = 1280
+				height = 720
+			}
+
+			const isAnimated =
+				(typeof t === 'object' && t?.animated === true) || file.toLowerCase().includes('animated')
+
+			outdatedThumbnails.push({
+				entry: t,
+				file,
+				width,
+				height,
+				format,
+				isAnimated,
+				thumbModified,
+				latestOtherModified,
+			})
+		}
+	}
+
+	return outdatedThumbnails
+}
+
+/**
+ * Regenerates the specified outdated thumbnails for a graphic, preserving the exact same
+ * resolution and file format as each thumbnail being replaced.
+ *
+ * @param {object} opts
+ * @param {object} opts.graphic
+ * @param {Array}  opts.outdatedThumbnails
+ * @param {object} [opts.thumbnailSettings]
+ * @param {Function} [opts.onProgress]
+ * @param {Function} opts.writeFileFn
+ * @returns {Promise<Array<{file:string, resolution:{width:number,height:number}, format:string, animated?:boolean}>>}
+ */
+export async function replaceOutdatedThumbnailsForGraphic({
+	graphic,
+	outdatedThumbnails,
+	thumbnailSettings = {},
+	onProgress = () => {},
+	writeFileFn,
+}) {
+	if (!outdatedThumbnails || outdatedThumbnails.length === 0) return []
+
+	const results = []
+	const staticThumbnails = outdatedThumbnails.filter((t) => !t.isAnimated)
+	const animatedThumbnails = outdatedThumbnails.filter((t) => t.isAnimated)
+
+	const defaultData = graphic.manifest?.schema ? getDefaultDataFromSchema(graphic.manifest.schema) : {}
+	const isNonRealTime =
+		graphic.manifest?.supportsNonRealTime &&
+		(!graphic.manifest?.supportsRealTime || thumbnailSettings.realtime === false)
+	const seekTime = thumbnailSettings.time ?? thumbnailSettings.captureDelay ?? 0
+
+	// ── 1. Static Thumbnails ──
+	if (staticThumbnails.length > 0) {
+		const maxRes = staticThumbnails.reduce(
+			(best, r) => (r.width * r.height > best.width * best.height ? r : best),
+			staticThumbnails[0]
+		)
+
+		onProgress(`Capturing frame at ${maxRes.width}×${maxRes.height}…`)
+		const nativeCanvas = await captureSingleGraphicFrame({
+			graphic,
+			width: maxRes.width,
+			height: maxRes.height,
+			bgcolor: thumbnailSettings.transparent ? null : '#000000',
+			renderMethod: thumbnailSettings.renderMethod || 'html-in-canvas',
+			realtime: !isNonRealTime,
+			seekTime,
+			captureDelay: thumbnailSettings.captureDelay ?? 1000,
+			skipAnimation: thumbnailSettings.skipAnimation ?? true,
+			initialData: defaultData,
+			schedule: thumbnailSettings.schedule || [],
+			onProgress,
+		})
+
+		for (const t of staticThumbnails) {
+			onProgress(`Scaling & encoding ${t.file} (${t.width}×${t.height}, ${t.format.toUpperCase()})…`)
+
+			let scaledCanvas = document.createElement('canvas')
+			scaledCanvas.width = t.width
+			scaledCanvas.height = t.height
+			const ctx = scaledCanvas.getContext('2d')
+			if (thumbnailSettings.transparent && t.format !== 'jpg' && t.format !== 'jpeg') {
+				ctx.clearRect(0, 0, t.width, t.height)
+			}
+			ctx.drawImage(nativeCanvas, 0, 0, t.width, t.height)
+
+			// Cropped variant handling
+			let finalWidth = t.width
+			let finalHeight = t.height
+			if (t.file.includes('-cropped')) {
+				const cropped = cropTransparentBorder(scaledCanvas)
+				if (cropped) {
+					scaledCanvas = cropped.canvas
+					finalWidth = cropped.width
+					finalHeight = cropped.height
+				}
+			}
+
+			let blob
+			const format = t.format.toLowerCase()
+
+			if (format === 'jpg' || format === 'jpeg') {
+				const jpegCanvas = document.createElement('canvas')
+				jpegCanvas.width = scaledCanvas.width
+				jpegCanvas.height = scaledCanvas.height
+				const jctx = jpegCanvas.getContext('2d')
+				jctx.fillStyle = '#000000'
+				jctx.fillRect(0, 0, scaledCanvas.width, scaledCanvas.height)
+				jctx.drawImage(scaledCanvas, 0, 0)
+				blob = await canvasToBlob(jpegCanvas, 'image/jpeg', 0.9)
+			} else if (format === 'webp') {
+				blob = await canvasToBlob(scaledCanvas, 'image/webp', 0.85)
+			} else if (format === 'gif') {
+				blob = await createAnimatedGifFromCanvases([scaledCanvas], {
+					width: scaledCanvas.width,
+					height: scaledCanvas.height,
+					transparent: thumbnailSettings.transparent,
+				})
+			} else {
+				// Default to PNG
+				blob = await canvasToBlob(scaledCanvas, 'image/png')
+			}
+
+			onProgress(`Writing ${t.file}…`)
+			await writeFileFn(graphic.folderPath + t.file, blob)
+
+			results.push({
+				file: t.file,
+				resolution: { width: finalWidth, height: finalHeight },
+				format,
+			})
+		}
+	}
+
+	// ── 2. Animated Thumbnails ──
+	if (animatedThumbnails.length > 0 && graphic.manifest?.supportsNonRealTime) {
+		for (const t of animatedThumbnails) {
+			onProgress(`Generating animated thumbnail ${t.file} (${t.width}×${t.height})…`)
+
+			const animSettings = {
+				...thumbnailSettings,
+				animatedResolution: { width: t.width, height: t.height },
+				animatedWebp: t.format === 'webp',
+				animatedGif: t.format === 'gif',
+			}
+
+			await generateAnimatedThumbnailsForGraphic({
+				graphic,
+				thumbnailSettings: animSettings,
+				onProgress,
+				writeFileFn: async (_outputPath, blob) => {
+					await writeFileFn(graphic.folderPath + t.file, blob)
+				},
+			})
+
+			results.push({
+				file: t.file,
+				resolution: { width: t.width, height: t.height },
+				format: t.format,
+				animated: true,
+			})
+		}
+	}
+
+	return results
 }

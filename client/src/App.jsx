@@ -65,9 +65,19 @@ export function App() {
 	const [graphicsList, setGraphicsList] = React.useState(null)
 	const [graphicsFolderName, setGraphicsFolderName] = React.useState(null)
 	const [graphicsSource, setGraphicsSource] = React.useState('local') // 'local' | 'remote'
+	const [graphicsFilter, setGraphicsFilter] = React.useState('')
 	const [initialRemoteUrl, setInitialRemoteUrl] = React.useState(() => {
 		return new URLSearchParams(window.location.search).get('remoteUrl')
 	})
+
+	// Reset graphics filter when folder changes
+	const prevFolderRef = React.useRef(graphicsFolderName)
+	React.useEffect(() => {
+		if (prevFolderRef.current !== graphicsFolderName) {
+			prevFolderRef.current = graphicsFolderName
+			setGraphicsFilter('')
+		}
+	}, [graphicsFolderName])
 
 	// Remote Modal state for refreshing / re-discovery:
 	const [showRemoteModal, setShowRemoteModal] = React.useState(false)
@@ -168,6 +178,7 @@ export function App() {
 			const resolvedUrl = resolveRemoteUrl(submittedUrl)
 			const effectiveFolderName = isSample ? 'Bundled Sample Pack' : resolvedUrl
 			setGraphicsFolderName(effectiveFolderName)
+			setGraphicsFilter('')
 			await refreshRemoteGraphics(submittedUrl)
 		},
 		[refreshRemoteGraphics]
@@ -181,6 +192,7 @@ export function App() {
 		setInitialRemoteUrl(null)
 		setGraphicsList(null)
 		setGraphicsFolderName(null)
+		setGraphicsFilter('')
 		if (graphicsSource === 'remote') remoteHandler.close()
 		else fileHandler.close()
 		// Drop the "?remoteUrl=" query param, so it isn't restored:
@@ -235,6 +247,7 @@ export function App() {
 					setGraphicsList(graphicsList)
 					setGraphicsFolderName(graphicsFolderName)
 					setGraphicsSource(source ?? 'local')
+					setGraphicsFilter('')
 				}}
 			/>
 		)
@@ -254,6 +267,8 @@ export function App() {
 								graphicsFolderName={graphicsFolderName}
 								graphicsSource={graphicsSource}
 								onCloseFolder={onCloseFolder}
+								searchQuery={graphicsFilter}
+								onSearchQueryChange={setGraphicsFilter}
 							/>
 						}
 					/>

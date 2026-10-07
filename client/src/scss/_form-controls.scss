@@ -1,0 +1,282 @@
+// ==========================================================================
+// Form Controls: Checkboxes, Radio Buttons, and Form Switches
+// High Contrast, Accessible, and Theme Accent Colors When Active
+// ==========================================================================
+
+// Global native input accents
+input[type='checkbox'],
+input[type='radio'] {
+	accent-color: var(--app-accent-blue);
+}
+
+// --------------------------------------------------------------------------
+// 1. Checkbox & Radio Containers (.form-check)
+// --------------------------------------------------------------------------
+.form-check {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	min-height: 1.5rem;
+	padding-left: 0;
+	margin-bottom: 0.4rem;
+	width: fit-content;
+	max-width: 100%;
+	cursor: pointer;
+	position: relative;
+
+	.form-check-input {
+		float: none;
+		margin-left: 0 !important;
+		margin-top: 0.16em;
+		flex-shrink: 0;
+		cursor: pointer;
+	}
+
+	.form-check-label {
+		cursor: pointer;
+		user-select: none;
+		margin-bottom: 0;
+		color: var(--app-text-main);
+		font-weight: 500;
+		line-height: 1.45;
+		font-size: inherit;
+		transition: color 0.15s ease;
+	}
+
+	// Interactive hover row feedback
+	&:hover:not(.disabled):not(:has(.form-check-input:disabled)) {
+		.form-check-label {
+			color: var(--app-text-main);
+		}
+
+		.form-check-input:not(:disabled):not(:checked) {
+			border-color: var(--app-control-border-hover);
+			box-shadow: 0 0 0 2px var(--app-accent-blue-subtle);
+		}
+	}
+
+	// Alignment modifier when inline
+	&.form-check-inline {
+		display: inline-flex;
+		margin-right: 1.25rem;
+	}
+
+	// Reverse layout modifier
+	&.form-check-reverse {
+		flex-direction: row-reverse;
+		justify-content: flex-end;
+	}
+
+	// Disabled state
+	&.disabled,
+	&:has(.form-check-input:disabled) {
+		opacity: 0.45;
+		cursor: not-allowed;
+
+		.form-check-input,
+		.form-check-label {
+			cursor: not-allowed;
+		}
+	}
+}
+
+// --------------------------------------------------------------------------
+// 2. Base Form Check Inputs (Common to Checkbox & Radio)
+// --------------------------------------------------------------------------
+.form-check-input {
+	appearance: none;
+	-webkit-appearance: none;
+	width: 1.15em;
+	height: 1.15em;
+	margin-top: 0.16em;
+	vertical-align: top;
+	background-color: var(--app-control-bg);
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: contain;
+	border: 1.5px solid var(--app-control-border);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+	transition: background-color 0.18s ease,
+		border-color 0.18s ease,
+		box-shadow 0.18s ease,
+		filter 0.15s ease,
+		transform 0.1s ease;
+	cursor: pointer;
+
+	&:hover:not(:disabled):not(:checked) {
+		border-color: var(--app-control-border-hover);
+		background-color: var(--app-surface-hover);
+		box-shadow: 0 0 0 2px var(--app-accent-blue-subtle);
+	}
+
+	&:focus {
+		outline: 0 !important;
+		border-color: var(--app-accent-blue) !important;
+		box-shadow: var(--app-control-focus-ring) !important;
+	}
+
+	&:active:not(:disabled) {
+		transform: scale(0.92);
+	}
+
+	&:disabled {
+		pointer-events: none;
+		filter: none;
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+
+	// ----------------------------------------------------------------------
+	// 3. Checkbox Specifics
+	// ----------------------------------------------------------------------
+	&[type='checkbox'] {
+		border-radius: 4px;
+
+		&:checked {
+			background-color: var(--app-control-checked-bg) !important;
+			border-color: var(--app-control-checked-border) !important;
+			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m5 10 3.5 3.5 6.5-7'/%3e%3c/svg%3e") !important;
+			background-size: 85% 85%;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+
+			&:hover:not(:disabled) {
+				filter: brightness(1.1);
+				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--app-accent-blue-subtle);
+			}
+		}
+
+		&:indeterminate {
+			background-color: var(--app-control-checked-bg) !important;
+			border-color: var(--app-control-checked-border) !important;
+			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M5 10h10'/%3e%3c/svg%3e") !important;
+			background-size: 85% 85%;
+		}
+	}
+
+	// ----------------------------------------------------------------------
+	// 4. Radio Button Specifics
+	// ----------------------------------------------------------------------
+	&[type='radio'] {
+		border-radius: 50%;
+
+		&:checked {
+			background-color: var(--app-control-checked-bg) !important;
+			border-color: var(--app-control-checked-border) !important;
+			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='2.2' fill='%23ffffff'/%3e%3c/svg%3e") !important;
+			background-size: contain;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+
+			&:hover:not(:disabled) {
+				filter: brightness(1.1);
+				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--app-accent-blue-subtle);
+			}
+		}
+	}
+}
+
+// --------------------------------------------------------------------------
+// 5. Form Switch (.form-switch)
+// --------------------------------------------------------------------------
+.form-switch {
+	padding-left: 0;
+
+	.form-check-input {
+		width: 2.3em;
+		height: 1.3em;
+		margin-top: 0.1em;
+		margin-left: 0 !important;
+		float: none !important;
+		border-radius: 2em;
+		background-color: var(--app-switch-track-bg);
+		border: 1.5px solid var(--app-switch-track-border);
+		background-image: var(--app-switch-thumb-svg);
+		background-position: 0% 50%;
+		background-size: contain;
+		background-repeat: no-repeat;
+		box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+		transition: background-position 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+			background-color 0.2s ease,
+			border-color 0.2s ease,
+			box-shadow 0.2s ease,
+			filter 0.15s ease,
+			transform 0.1s ease;
+
+		&:hover:not(:disabled):not(:checked) {
+			border-color: var(--app-switch-track-hover-border);
+			box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15), 0 0 0 2px var(--app-accent-blue-subtle);
+		}
+
+		&:focus {
+			outline: 0 !important;
+			border-color: var(--app-accent-blue) !important;
+			box-shadow: var(--app-control-focus-ring) !important;
+		}
+
+		&:checked {
+			background-color: var(--app-switch-checked-track-bg) !important;
+			border-color: var(--app-switch-checked-track-border) !important;
+			background-image: var(--app-switch-checked-thumb-svg) !important;
+			background-position: 100% 50%;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+
+			&:hover:not(:disabled) {
+				filter: brightness(1.08);
+				box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--app-accent-blue-subtle);
+			}
+		}
+
+		&:active:not(:disabled) {
+			transform: scale(0.96);
+		}
+	}
+}
+
+// --------------------------------------------------------------------------
+// 6. Custom Switch Helper Class (.custom-switch)
+// --------------------------------------------------------------------------
+.custom-switch {
+	font-size: 0.84rem;
+	color: var(--app-text-main);
+
+	.form-check-label {
+		font-size: 0.84rem;
+	}
+}
+
+// --------------------------------------------------------------------------
+// 7. Select & Dropdown Options (.form-select, select)
+// --------------------------------------------------------------------------
+select,
+.form-select {
+	color-scheme: light dark;
+
+	option {
+		background-color: var(--app-card-bg-solid);
+		color: var(--app-text-main);
+	}
+}
+
+[data-bs-theme='dark'] {
+	select,
+	.form-select {
+		color-scheme: dark;
+
+		option {
+			background-color: #18181b;
+			color: #f4f4f5;
+		}
+	}
+}
+
+[data-bs-theme='light'] {
+	select,
+	.form-select {
+		color-scheme: light;
+
+		option {
+			background-color: #ffffff;
+			color: #18181b;
+		}
+	}
+}
+

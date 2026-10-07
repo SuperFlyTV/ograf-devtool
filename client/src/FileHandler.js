@@ -69,7 +69,7 @@ class FileHandler extends EventEmitter {
 				let lastModified = fileObj.lastModified
 				for (const [siblingKey, siblingFile] of Object.entries(this.files)) {
 					if (!siblingKey.startsWith(folderPath)) continue
-					if (!siblingFile.handle.name.endsWith('.js')) continue
+					if (!(siblingFile.handle.name.endsWith('.js') || siblingFile.handle.name.endsWith('.mjs'))) continue
 					try {
 						const siblingObj = await siblingFile.handle.getFile()
 						if (siblingObj.lastModified > lastModified) {

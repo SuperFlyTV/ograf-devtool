@@ -289,20 +289,6 @@
 		}
 	}
 
-	.form-check-input {
-		background-color: var(--app-surface-hover);
-		border: 1px solid var(--app-input-border);
-
-		&:checked {
-			background-color: var(--app-text-main);
-			border-color: var(--app-text-main);
-		}
-
-		&:focus {
-			box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
-		}
-	}
-
 	.input-group-text {
 		background: var(--app-surface-hover);
 		border-color: var(--app-input-border);
@@ -829,16 +815,6 @@
 
 		.form-check-label {
 			color: var(--app-text-main);
-		}
-
-		.form-check-input {
-			background-color: var(--app-surface-hover);
-			border: 1px solid var(--app-input-border);
-
-			&:checked {
-				background-color: var(--app-text-main);
-				border-color: var(--app-text-main);
-			}
 		}
 
 		.input-group-text {
