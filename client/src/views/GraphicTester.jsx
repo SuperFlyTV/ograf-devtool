@@ -15,6 +15,7 @@ import { GraphicCapabilities } from '../components/GraphicCapabilities.jsx'
 import { GraphicTimeline } from '../components/GraphicTimeline.jsx'
 import { VideoExportModal } from '../components/VideoExportModal.jsx'
 import { CustomControllersPanel } from '../components/CustomControllersPanel.jsx'
+import { ActionDurationsPanel } from '../components/ActionDurationsPanel.jsx'
 import { SettingsContext, getDefaultSettings } from '../contexts/SettingsContext.js'
 import { getDefaultDataFromSchema } from 'ograf-form'
 
@@ -256,12 +257,18 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 		console.error(e)
 	}, [])
 
+	const [rendererInstance, setRendererInstance] = React.useState(null)
+
 	React.useLayoutEffect(() => {
 		if (!rendererRef.current) {
 			if (canvasRef.current) {
-				rendererRef.current = new Renderer(canvasRef.current)
+				const r = new Renderer(canvasRef.current, { shadowDomMode: 'none' })
+				rendererRef.current = r
 				rendererRef.current.setGraphic(graphic)
+				setRendererInstance(r)
 			}
+		} else {
+			setRendererInstance(rendererRef.current)
 		}
 	}, [graphic])
 
@@ -804,6 +811,21 @@ function GraphicTesterInner({ graphic, graphicsFolderName, graphicsSource }) {
 												</Button>
 											</div>
 										) : null}
+									</div>
+
+									<div className="action-durations">
+										<ActionDurationsPanel
+											manifest={graphicManifest || graphic?.manifest}
+											graphic={graphic}
+											renderer={rendererInstance || rendererRef.current}
+											rendererRef={rendererRef}
+											canvasRef={canvasRef}
+											settings={settings}
+											onSettingsChange={onSettingsChange}
+											onUpdateManifest={(newManifest) => setGraphicManifest({ ...newManifest })}
+											externalData={settings.realtime ? realtimeData : currentNonRealtimeData}
+											onTimeUpdate={(t) => setPlayTimeState(t)}
+										/>
 									</div>
 
 									<div className="issues">

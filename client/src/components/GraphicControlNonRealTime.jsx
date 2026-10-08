@@ -23,7 +23,7 @@ export function GraphicControlNonRealTime({
 	const settingsRef = React.useRef(settings)
 	settingsRef.current = settings
 
-	const currentPlayTime = playTime !== undefined ? playTime : (playTimeRef?.current || 0)
+	const currentPlayTime = playTime !== undefined ? playTime : playTimeRef?.current || 0
 
 	const initialDataFromSchema = React.useMemo(() => {
 		return manifest?.schema ? getDefaultDataFromSchema(manifest.schema) : {}
@@ -172,7 +172,8 @@ export function GraphicControlNonRealTime({
 
 				// Update or insert the initialData event at timestamp 0 in the timeline schedule
 				const existingIndex = scheduleCopy.findIndex(
-					(item) => item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
+					(item) =>
+						item.action?.type === 'initialData' || (item.timestamp === 0 && item.action?.type === 'updateAction')
 				)
 				if (existingIndex >= 0) {
 					scheduleCopy[existingIndex] = {
@@ -199,14 +200,7 @@ export function GraphicControlNonRealTime({
 				reloadGraphicWithInitialData(cloned)
 			}
 		},
-		[
-			activeUpdateAction,
-			schedule,
-			setActionsSchedule,
-			sentSetPlayTime,
-			rendererRef,
-			reloadGraphicWithInitialData,
-		]
+		[activeUpdateAction, schedule, setActionsSchedule, sentSetPlayTime, rendererRef, reloadGraphicWithInitialData]
 	)
 
 	const [skipAnimation, setSkipAnimation] = React.useState(false)
@@ -314,10 +308,7 @@ export function GraphicControlNonRealTime({
 												<h6 className="section-card-title mb-0">
 													{activeUpdateAction ? 'Update Data' : 'Initial Data'}
 												</h6>
-												<Badge
-													bg={activeUpdateAction ? 'success' : 'secondary'}
-													className="fs-8 font-monospace"
-												>
+												<Badge bg={activeUpdateAction ? 'success' : 'secondary'} className="fs-8 font-monospace">
 													t = {activeUpdateAction ? activeUpdateAction.item.timestamp.toLocaleString() : 0} ms
 												</Badge>
 											</div>
@@ -328,12 +319,7 @@ export function GraphicControlNonRealTime({
 											</span>
 										</div>
 										<div className="graphics-manifest-schema m-0">
-											<OGrafForm
-												key={formKey}
-												schema={manifest.schema}
-												data={currentFormData}
-												setData={onDataSave}
-											/>
+											<OGrafForm key={formKey} schema={manifest.schema} data={currentFormData} setData={onDataSave} />
 										</div>
 									</div>
 								)}
@@ -361,7 +347,7 @@ export function GraphicControlNonRealTime({
 									<div className="mb-3">
 										<ButtonGroup className="w-100">
 											<Button
-												variant="success"
+												variant="outline-primary"
 												className="fw-semibold"
 												onClick={() => {
 													addToSchedule(currentPlayTime, 'updateAction', { data: currentFormData })
@@ -379,7 +365,7 @@ export function GraphicControlNonRealTime({
 												+ Add Play
 											</Button>
 											<Button
-												variant="danger"
+												variant="outline-primary"
 												className="fw-semibold"
 												onClick={() => {
 													addToSchedule(currentPlayTime, 'stopAction', { skipAnimation })

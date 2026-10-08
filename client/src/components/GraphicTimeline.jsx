@@ -351,6 +351,40 @@ export function GraphicTimeline({
 		rulerTicks.push(i * 1000)
 	}
 
+	// Look up action duration from manifest for an item
+	const getActionDuration = React.useCallback(
+		(item) => {
+			if (!manifest?.actionDurations || !Array.isArray(manifest.actionDurations)) return 0
+			const actionType = item.action?.type
+			if (!actionType || actionType === 'initialData') return 0
+
+			if (actionType === 'playAction') {
+				const playDef = manifest.actionDurations.find((d) => d.type === 'playAction')
+				if (!playDef) return 0
+				const targetStep = item.action.params?.goto
+				if (typeof targetStep === 'number' && Array.isArray(playDef.steps)) {
+					const stepDef = playDef.steps.find((s) => s.step === targetStep)
+					if (stepDef && typeof stepDef.duration === 'number' && stepDef.duration > 0) return stepDef.duration
+				}
+				return playDef.duration > 0 ? playDef.duration : 0
+			} else if (actionType === 'updateAction') {
+				const updateDef = manifest.actionDurations.find((d) => d.type === 'updateAction')
+				return updateDef && updateDef.duration > 0 ? updateDef.duration : 0
+			} else if (actionType === 'stopAction') {
+				const stopDef = manifest.actionDurations.find((d) => d.type === 'stopAction')
+				return stopDef && stopDef.duration > 0 ? stopDef.duration : 0
+			} else if (actionType === 'customAction') {
+				const customId = item.action.params?.id
+				const customDef = manifest.actionDurations.find(
+					(d) => d.type === 'customAction' && d.customActionId === customId
+				)
+				return customDef && customDef.duration > 0 ? customDef.duration : 0
+			}
+			return 0
+		},
+		[manifest?.actionDurations]
+	)
+
 	// Helper to calculate visual label text and estimated end percentage of an event marker badge
 	const getEventLabel = React.useCallback((item) => {
 		const actionType = item.action?.type || 'action'
@@ -379,9 +413,11 @@ export function GraphicTimeline({
 			const trackWidthPx = timelineTrackRef.current?.clientWidth || 800
 			const widthPercent = (estimatedPx / trackWidthPx) * 100
 			const startPercent = (item.timestamp / duration) * 100
-			return startPercent + widthPercent
+			const durationVal = getActionDuration(item)
+			const durationPercent = durationVal > 0 ? (durationVal / duration) * 100 : 0
+			return startPercent + Math.max(widthPercent, durationPercent)
 		},
-		[duration, getEventLabel]
+		[duration, getEventLabel, getActionDuration]
 	)
 
 	// Group events into horizontal lanes based on exact visual label overlap
@@ -664,25 +700,53 @@ export function GraphicTimeline({
 
 								const isDraggingThis = dragIndex === item.originalIndex
 								const isInitialData = actionType === 'initialData'
+								const itemDuration = getActionDuration(item)
 
 								return (
-									<div
-										key={item.originalIndex}
-										className={`timeline-event-pin position-absolute d-flex align-items-center ${
-											isDraggingThis ? 'dragging' : ''
-										}`}
-										style={{
-											left: `${leftPercent}%`,
-											top: '1px',
-											zIndex: isDraggingThis ? 8 : 5,
-										}}
-										onMouseDown={(e) => (isInitialData ? null : handleMouseDownEvent(item.originalIndex, e))}
-										onClick={(e) => {
-											e.stopPropagation()
-											if (isDraggingEventRef.current) return
-											setEditingIndex(item.originalIndex)
-										}}
-									>
+									<React.Fragment key={item.originalIndex}>
+										{itemDuration > 0 && (
+											<div
+												className="timeline-duration-bar position-absolute rounded"
+												style={{
+													left: `${leftPercent}%`,
+													width: `${Math.min(100 - leftPercent, (itemDuration / duration) * 100)}%`,
+													top: '1px',
+													height: '22px',
+													backgroundColor: colorBg,
+													opacity: 0.25,
+													borderTop: `1px solid ${colorBg}`,
+													borderBottom: `1px solid ${colorBg}`,
+													borderRight: `2px solid ${colorBg}`,
+													borderRadius: '2px',
+													pointerEvents: 'none',
+													zIndex: 3,
+												}}
+												title={`${actionLabel} duration: ${itemDuration}ms (ends at ${item.timestamp + itemDuration}ms)`}
+											>
+												<span
+													className="position-absolute end-0 top-50 translate-middle-y me-1 font-monospace"
+													style={{ fontSize: '0.62rem', color: '#fff', opacity: 0.9, textShadow: '0 0 3px #000' }}
+												>
+													{itemDuration}ms
+												</span>
+											</div>
+										)}
+										<div
+											className={`timeline-event-pin position-absolute d-flex align-items-center ${
+												isDraggingThis ? 'dragging' : ''
+											}`}
+											style={{
+												left: `${leftPercent}%`,
+												top: '1px',
+												zIndex: isDraggingThis ? 8 : 5,
+											}}
+											onMouseDown={(e) => (isInitialData ? null : handleMouseDownEvent(item.originalIndex, e))}
+											onClick={(e) => {
+												e.stopPropagation()
+												if (isDraggingEventRef.current) return
+												setEditingIndex(item.originalIndex)
+											}}
+										>
 										{/* Left Drag Handle & Starting Point Needle */}
 										<div
 											className="event-drag-handle shadow-sm d-flex align-items-center justify-content-center px-1"
@@ -734,6 +798,7 @@ export function GraphicTimeline({
 											)}
 										</div>
 									</div>
+								</React.Fragment>
 								)
 							})}
 						</div>

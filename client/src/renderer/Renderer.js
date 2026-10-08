@@ -1,9 +1,56 @@
 import { LayerHandler } from './LayerHandler.js'
 import { ResourceProvider } from './ResourceProvider.js'
 
+export function formatGraphicCommand(actionName, arg) {
+	switch (actionName) {
+		case 'clearGraphic':
+		case 'dispose':
+			return 'graphic.dispose({})'
+		case 'loadGraphic':
+		case 'load': {
+			const renderType = arg?.renderType || (arg?.settings?.realtime ? 'realtime' : 'non-realtime')
+			const dataStr = arg?.data !== undefined ? formatPayloadPreview(arg.data) : '{}'
+			return `graphic.load({ renderType: "${renderType}", data: ${dataStr} })`
+		}
+		case 'playAction':
+			return `graphic.playAction(${formatPayloadPreview(arg || {})})`
+		case 'updateAction':
+			return `graphic.updateAction(${formatPayloadPreview(arg || {})})`
+		case 'stopAction':
+			return `graphic.stopAction(${formatPayloadPreview(arg || {})})`
+		case 'customAction': {
+			const id = arg?.id || arg?.actionId || 'custom'
+			const payload = arg?.payload !== undefined ? formatPayloadPreview(arg.payload) : '{}'
+			return `graphic.customAction({ id: "${id}", payload: ${payload} })`
+		}
+		case 'goToTime':
+		case 'gotoTime': {
+			const ts = typeof arg === 'object' && arg !== null ? (arg.timestamp ?? 0) : Number(arg)
+			return `graphic.goToTime({ timestamp: ${ts} })`
+		}
+		case 'setActionsSchedule': {
+			const sched = Array.isArray(arg?.schedule) ? arg.schedule : (Array.isArray(arg) ? arg : [])
+			return `graphic.setActionsSchedule([${sched.length} action${sched.length === 1 ? '' : 's'}])`
+		}
+		default:
+			return `graphic.${actionName}(${formatPayloadPreview(arg || {})})`
+	}
+}
+
+function formatPayloadPreview(val, maxLen = 80) {
+	if (val === undefined || val === null) return '{}'
+	try {
+		const str = JSON.stringify(val)
+		if (str.length <= maxLen) return str
+		return str.slice(0, maxLen - 1) + '…}'
+	} catch (_) {
+		return String(val)
+	}
+}
+
 export class Renderer {
 	constructor(containerElement, options = {}) {
-		const shadowDomMode = options.shadowDomMode ?? 'closed'
+		const shadowDomMode = options.shadowDomMode ?? 'none'
 		// This renderer has only one layer.
 		this.layer = new LayerHandler(containerElement, 'default-layer', 0, shadowDomMode)
 		this.graphicState = ''
@@ -53,7 +100,10 @@ export class Renderer {
 
 	async _runAction(actionName, arg, fn) {
 		const commandId = `cmd_${++this._commandIdCounter}`
-		this.emitEvent(`${actionName}Start`, { commandId, arg })
+		const startTime = performance.now()
+		const command = formatGraphicCommand(actionName, arg)
+		this.emitEvent(`${actionName}Start`, { commandId, arg, command })
+		this.emitEvent('actionStart', { actionName, commandId, arg, command })
 
 		let result
 		try {
@@ -64,8 +114,10 @@ export class Renderer {
 			result = { error: err.message || String(err) }
 			throw err
 		} finally {
-			this.emitEvent(`${actionName}End`, { commandId, arg, result })
-			this.emitEvent(actionName, { commandId, arg, result })
+			const duration = Math.round(performance.now() - startTime)
+			this.emitEvent(`${actionName}End`, { commandId, arg, result, duration, command })
+			this.emitEvent(actionName, { commandId, arg, result, duration, command })
+			this.emitEvent('action', { actionName, commandId, arg, result, duration, command })
 		}
 	}
 
@@ -88,35 +140,45 @@ export class Renderer {
 		const folderPath = this.graphic?.folderPath || this.graphic?.path || ''
 		const graphicPath = ResourceProvider.graphicPath(folderPath, mainFile)
 
-		try {
-			this.graphicState = 'pre-load'
-			this.loadGraphicStartTime = Date.now()
-			await this.layer.loadGraphic(settings, graphicPath, this.data)
-			this.graphicState = 'post-load'
-			this.loadGraphicEndTime = Date.now()
-			return this.getCustomControllers()
-		} catch (e) {
-			this.graphicState = 'error'
-			console.error(e)
-			throw e
-		}
+		return this._runAction('loadGraphic', { settings, data: this.data, graphicPath }, async () => {
+			try {
+				this.graphicState = 'pre-load'
+				this.loadGraphicStartTime = Date.now()
+				await this.layer.loadGraphic(settings, graphicPath, this.data)
+				this.graphicState = 'post-load'
+				this.loadGraphicEndTime = Date.now()
+				return this.getCustomControllers()
+			} catch (e) {
+				this.graphicState = 'error'
+				console.error(e)
+				throw e
+			}
+		})
 	}
 	getCustomControllers() {
 		return this.layer.customControllers || []
 	}
+	getGraphicElement() {
+		return this.layer.currentGraphic?.element || null
+	}
+	getGraphicContainer() {
+		return this.layer.element || null
+	}
 	/** Clear/unloads a GraphicInstance on a RenderTarget */
 	async clearGraphic() {
-		try {
-			this.graphicState = 'pre-clear'
-			this.clearGraphicStartTime = Date.now()
-			await this.layer.clearGraphic()
-			this.graphicState = 'post-clear'
-			this.clearGraphicEndTime = Date.now()
-		} catch (e) {
-			this.graphicState = 'error'
-			console.error(e)
-			throw e
-		}
+		return this._runAction('clearGraphic', {}, async () => {
+			try {
+				this.graphicState = 'pre-clear'
+				this.clearGraphicStartTime = Date.now()
+				await this.layer.clearGraphic()
+				this.graphicState = 'post-clear'
+				this.clearGraphicEndTime = Date.now()
+			} catch (e) {
+				this.graphicState = 'error'
+				console.error(e)
+				throw e
+			}
+		})
 	}
 
 	async updateAction(params = {}) {

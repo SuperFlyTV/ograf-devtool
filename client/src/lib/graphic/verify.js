@@ -462,6 +462,14 @@ export async function validateGraphicManifest(graphicManifest, schemaErrors, opt
 				}
 			}
 		}
+	} else if (!graphicManifest.actionDurations || (Array.isArray(graphicManifest.actionDurations) && graphicManifest.actionDurations.length === 0)) {
+		issues.push(
+			createIssue({
+				id: 'T1.4',
+				severity: 'info',
+				message: 'No actionDurations defined in manifest. Adding actionDurations helps controllers predict animation timing.',
+			})
+		)
 	}
 
 	// GDD Schema validation & T2.1: Missing property titles
