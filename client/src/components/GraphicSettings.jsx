@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Form, Accordion, Row, Col } from 'react-bootstrap'
+import { Form, Accordion, Row, Col, Button } from 'react-bootstrap'
 import { SettingsContext } from '../contexts/SettingsContext.js'
 
 export function GraphicSettings() {
@@ -64,6 +64,15 @@ export function GraphicSettings() {
 											}
 										/>
 									</Form.Group>
+									<Button
+										type="button"
+										variant="outline-secondary"
+										size="sm"
+										className="mb-3"
+										onClick={() => onChange({ ...settings, width: settings.height, height: settings.width })}
+									>
+										Swap width and height
+									</Button>
 								</Col>
 								<Col md={6}>
 									{!settings.realtime ? (

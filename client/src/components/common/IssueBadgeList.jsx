@@ -202,7 +202,7 @@ export function IssueBadgeList({
 						<span className="badge-icon">
 							<FontAwesomeIcon icon={faCheck} />
 						</span>
-						<span>Valid</span>
+						<span>No errors</span>
 						<span className="expand-indicator">
 							<FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
 						</span>
